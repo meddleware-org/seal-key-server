@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   lint:
+    timeout-minutes: 15
     name: Lint (hadolint, actionlint, Trivy config)
     runs-on: ubuntu-latest
     steps:
@@ -38,6 +39,7 @@ jobs:
           version: v0.74.0
 
   licences:
+    timeout-minutes: 30
     name: Licences (cargo-about)
     runs-on: ubuntu-latest
     steps:
@@ -59,6 +61,7 @@ jobs:
           wc -l notices/*
 
   image:
+    timeout-minutes: 90
     name: Build, scan and smoke-test (amd64)
     runs-on: ubuntu-latest
     steps:
