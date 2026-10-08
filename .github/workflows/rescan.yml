@@ -1,0 +1,54 @@
+name: Weekly rescan
+# Re-scans the latest published image for vulnerabilities disclosed after it was built, and checks
+# whether MystenLabs/seal has released a newer version than the Dockerfile pins. A contingency image is
+# only useful if it is current on the day it is needed; a failing run or a new issue is the signal.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: seal-key-server
+
+jobs:
+  rescan:
+    name: Rescan the published image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trivy image scan (fail on fixable CRITICAL/HIGH)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: quay.io/${{ vars.QUAY_NAMESPACE || 'meddleware-org' }}/${{ env.IMAGE }}:latest
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          version: v0.74.0
+
+  upstream:
+    name: Upstream release watch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compare the pinned release with the latest upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="$(sed -n 's/^ARG SEAL_TAG=//p' Dockerfile)"
+          latest="$(gh api repos/MystenLabs/seal/releases/latest --jq .tag_name)"
+          echo "pinned: ${current}  latest upstream: ${latest}"
+          if [ "$current" = "$latest" ]; then
+            exit 0
+          fi
+          open="$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"${latest}\" in:title" --json number --jq 'length')"
+          if [ "$open" = "0" ]; then
+            gh issue create -R "$GITHUB_REPOSITORY" \
+              --title "Upstream MystenLabs/seal ${latest} is out (image pins ${current})" \
+              --body "Update \`SEAL_TAG\` and \`SEAL_COMMIT\` in the Dockerfile (and the Rust image if the release's \`rust-toolchain.toml\` changed), bump \`VERSION\`, and tag. Read the upstream release notes for security fixes first: https://github.com/MystenLabs/seal/releases/tag/${latest}"
+          fi

@@ -1,0 +1,89 @@
+name: CI
+# Gate for the contingency seal-key-server image. Runs on every push and PR, and the release workflow
+# reuses it on the tagged commit (workflow_call), so a tag cannot skip a check.
+#   - hadolint, actionlint, Trivy configuration scan
+#   - third-party licence notices generate (an unaccepted licence fails the build)
+#   - an amd64 build that is not pushed, scanned with Trivy (fixable CRITICAL/HIGH fail)
+#   - a smoke test of the built image: non-root user, seal-cli runs, key-server refuses to start
+#     without configuration
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (hadolint, actionlint, Trivy config)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo docker.io/rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 -color
+      - name: Trivy configuration scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          version: v0.74.0
+
+  licences:
+    name: Licences (cargo-about)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      # Builds only the notices stage: a dependency under an unaccepted licence fails here in minutes,
+      # not after the full compile.
+      - name: Generate third-party notices
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          target: notices
+          outputs: type=local,dest=notices
+      - name: Notices are non-empty
+        run: |
+          for f in THIRD_PARTY_LICENSES-key-server.txt THIRD_PARTY_LICENSES-seal-cli.txt LICENSE-seal; do
+            test -s "notices/$f"
+          done
+          wc -l notices/*
+
+  image:
+    name: Build, scan and smoke-test (amd64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      # No registry login in this workflow: it compiles third-party code and pushes nothing.
+      - name: Build (not pushed)
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: seal-key-server:ci
+          cache-from: type=gha,scope=amd64
+          cache-to: type=gha,scope=amd64,mode=max
+
+      - name: Scan the image (fail on fixable CRITICAL/HIGH)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: seal-key-server:ci
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          version: v0.74.0
+
+      - name: Smoke test
+        run: bash scripts/smoke.sh seal-key-server:ci
