@@ -22,3 +22,13 @@ targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
 workarounds = ["ring"]
+
+# MystenLabs/mvr publishes mvr-types with no `license` field and no licence file in the crate
+# directory; the repository's root LICENSE (Apache-2.0) covers it. The checksum pins that file, so the
+# clarification stops applying (and the build fails) if the text changes.
+[mvr-types.clarify]
+license = "Apache-2.0"
+
+[[mvr-types.clarify.files]]
+path = "../../LICENSE"
+checksum = "7a7e49146942e233750c7e0f8d5937a105d4bfa0eb2755af79b1476a99f1ec36"

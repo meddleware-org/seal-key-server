@@ -1,17 +1,24 @@
 version: 2
 updates:
-  # Base-image digests (both FROM lines) and the Rust toolchain image.
+  # Base-image digests. The Rust image is excluded: its version must equal the upstream release's
+  # rust-toolchain.toml (a different toolchain makes rustup download one at build time), so it moves
+  # with SEAL_TAG, which the weekly upstream watch announces.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     groups:
       docker:
-        patterns: ["*"]
+        patterns: ['*']
+    ignore:
+      - dependency-name: rust
+      - dependency-name: library/rust
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     groups:
-      actions:
-        patterns: ["*"]
+      github-actions:
+        patterns: ['*']
