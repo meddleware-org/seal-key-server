@@ -10,7 +10,7 @@ ARG SEAL_TAG=seal-v0.6.15
 ARG SEAL_COMMIT=d0ab560e8dfffe31397728fe284936085a7a7100
 
 # Rust 1.96.1 matches the release's rust-toolchain.toml, so rustup downloads nothing.
-FROM docker.io/library/rust:1.96.1-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS source
+FROM docker.io/library/rust:1.98.1-slim-bookworm@sha256:ff521445a372125ed4f76e1453a1f8098f2d05332d1601d30db1c1f62757e730 AS source
 ARG SEAL_TAG
 ARG SEAL_COMMIT
 # Build-stage packages float with the Debian mirror on purpose (hadolint DL3008): they only affect the
