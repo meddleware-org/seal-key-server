@@ -28,7 +28,7 @@ custodial (its operator could decrypt what it serves), so seal-ui then shows tha
 ## Checks
 
 `CI` runs on every push and pull request: hadolint, actionlint, a Trivy configuration scan, the
-third-party licence generation, and an amd64 build (not pushed) that is scanned with Trivy (fixable
+and an amd64 build (not pushed; its notices stage generates the third-party licence texts and fails on an unaccepted licence) that is scanned with Trivy (fixable
 CRITICAL/HIGH fail) and smoke-tested by `scripts/smoke.sh` (non-root user, `seal-cli` starts,
 `key-server` refuses to start without configuration, licence files present). The release runs the same
 workflow on the tagged commit. A weekly workflow rescans the latest published image and opens an issue
