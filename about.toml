@@ -31,4 +31,4 @@ license = "Apache-2.0"
 
 [[mvr-types.clarify.files]]
 path = "../../LICENSE"
-checksum = "7a7e49146942e233750c7e0f8d5937a105d4bfa0eb2755af79b1476a99f1ec36"
+checksum = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
