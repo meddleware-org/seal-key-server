@@ -1059,6 +1059,8 @@ A native arm64 CI job would remove the gap.
   - **Observed, no action here:** the Dockerfile comment says CI builds `--target notices` alone, but
     `ci.yml` builds the whole image (which includes the stage); the kit's `base/deployment.yaml` still
     names tag `0.0.1` (the overlay's digest wins).
+- 2026-10-19 — dependency-bot status checked (read-only): `.github/dependabot.yml` carries the `ignore` rules and the repository has no open Dependabot pull requests (`gh pr list`, 2026-10-19). Versions, findings and gates were not re-examined in this pass.
+  - Dependabot policy encoded in .github/dependabot.yml (majors declined); open PRs merged 2026-10-19
 
 ## Pre-save consistency checklist (this pass)
 
