@@ -1061,6 +1061,7 @@ A native arm64 CI job would remove the gap.
     names tag `0.0.1` (the overlay's digest wins).
 - 2026-10-19 — dependency-bot status checked (read-only): `.github/dependabot.yml` carries the `ignore` rules and the repository has no open Dependabot pull requests (`gh pr list`, 2026-10-19). Versions, findings and gates were not re-examined in this pass.
   - Dependabot policy encoded in .github/dependabot.yml (majors declined); open PRs merged 2026-10-19
+- 2026-10-20 — release workflow compared with the new `sui-indexer` one (D61): no change here. This workflow already builds each architecture on a native runner (`ubuntu-24.04-arm` for arm64, so no QEMU compile), without registry credentials (OCI archives), pushes `<commit>-<arch>` with `skopeo copy --all`, merges with `docker buildx imagetools create`, scans by the merged digest before cosign signs, and attests SPDX and build provenance: it is the pattern `sui-indexer` adopted (the credential-less build is stronger than the `nft-gate` variant). Evidence: the merge step run locally from the published `b0c8751…-amd64` / `-arm64` indexes reproduces the published `0.0.2` index `sha256:8609cbbe…5497134` byte for byte, with both images and both SLSA provenance manifests. Not adopted here (optional, no finding): a `workflow_dispatch` dry run through a local registry, and an assertion that quay.io and Docker Hub merged to the same digest (the registries agree today, `verify-digests.sh` 16/16). No finding changes disposition.
 
 ## Pre-save consistency checklist (this pass)
 
