@@ -979,6 +979,7 @@ A native arm64 CI job would remove the gap.
    repository, so there is no commit to cite). A separate platform-level review of the cluster side
    (RBAC, egress, admission, SOPS key) stays with the platform audit; the maintainer may confirm or
    move the kit review there.
+   *(Decided 2026-10-22: the kit review is recorded in F8 by date, with its read-only result; no separate kit audit. The cluster-side review stays with the platform audit.)*
 2. **OQ2** On contingency, does Meddleware run one server (t = 1, fully custodial) or several
    independently operated ones? Is the custodial notice in seal-ui sufficient disclosure for users
    whose content was sealed under the independent committee and must be re-sealed? *Open
@@ -986,10 +987,9 @@ A native arm64 CI job would remove the gap.
    custody notice only when this server alone meets the threshold; the final decision is taken at
    activation (`OPERATOR_TASKS.md` "Mainnet Seal key servers").
 3. **OQ3** Should `latest` and `{major}.{minor}` tags be published at all for a security-critical,
-   digest-deployed image (F5)? *Open (maintainer):* they are still published and feed the weekly
-   rescan; deployment is by digest.
-4. **OQ4** Keep both registries? Each adds a static credential (F3) and a verification target. *Open
-   (maintainer):* both are still published, signed and verified identically.
+   digest-deployed image (F5)? *(Decided 2026-10-22: stop publishing `latest` and `{major}.{minor}`; publish exact version tags only, deploy by digest. A floating tag
+   gives a deployer nothing the digest does not and invites a silent move. Requirement for the next release: remove those tags from `docker-publish.yml` and point the weekly rescan at the newest exact version tag; no workflow was edited in this pass.)*
+4. **OQ4** Keep both registries? Each adds a static credential (F3) and a verification target. *(Decided 2026-10-22: keep both quay.io and Docker Hub: two independent registries are what the digest consensus (workspace `refresh-digests.sh`) votes over; both are signed and verified identically, and the credentials are inventoried under `OPERATOR_TASKS.md` "Image registry credentials".)*
 
 ## Risks
 
@@ -1063,6 +1063,10 @@ A native arm64 CI job would remove the gap.
   - Dependabot policy encoded in .github/dependabot.yml (majors declined); open PRs merged 2026-10-19
 - 2026-10-20 — release workflow compared with the new `sui-indexer` one (D61): no change here. This workflow already builds each architecture on a native runner (`ubuntu-24.04-arm` for arm64, so no QEMU compile), without registry credentials (OCI archives), pushes `<commit>-<arch>` with `skopeo copy --all`, merges with `docker buildx imagetools create`, scans by the merged digest before cosign signs, and attests SPDX and build provenance: it is the pattern `sui-indexer` adopted (the credential-less build is stronger than the `nft-gate` variant). Evidence: the merge step run locally from the published `b0c8751…-amd64` / `-arm64` indexes reproduces the published `0.0.2` index `sha256:8609cbbe…5497134` byte for byte, with both images and both SLSA provenance manifests. Not adopted here (optional, no finding): a `workflow_dispatch` dry run through a local registry, and an assertion that quay.io and Docker Hub merged to the same digest (the registries agree today, `verify-digests.sh` 16/16). No finding changes disposition.
 
+- 2026-10-22 (audit close-out) — open questions decided; no code or workflow change.
+  - **Decided 2026-10-22:** OQ3 (stop publishing `latest` and `{major}.{minor}`; exact version tags only, a requirement for the next release together with re-pointing the weekly rescan), OQ4 (keep both registries; the digest consensus needs two independent voters), OQ1 (the kit review is recorded in F8; no separate kit audit).
+  - F8 stays DEFERRED to the contingency-activation gate; Section D unticked boxes are unchanged (admission-time signature verification, Permissioned allowlist, testnet rehearsal of `0.0.2`, scans at the review date, seed custody runbook, external review, registry credentials).
+
 ## Pre-save consistency checklist (this pass)
 
 - [x] Section A ↔ findings: GAP row A12 (F13); A8, A9, A13, A14 hold; A10–A11 point to F8.
@@ -1074,3 +1078,4 @@ A native arm64 CI job would remove the gap.
 - [x] Executive summary ↔ dispositions and ceiling (realised Low); counts match.
 - [x] C.1 reflects the CI build, scans and smoke test.
 - [x] Re-verification log entry added (2026-10-09).
+- [x] 2026-10-22 (close-out): OQ1, OQ3, OQ4 carry their decisions; log entry added; no counts change.
