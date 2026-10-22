@@ -1,5 +1,6 @@
 name: Weekly rescan
-# Re-scans the latest published image for vulnerabilities disclosed after it was built, and checks
+# Re-scans the newest published release image (the highest exact version tag; no `latest` tag exists) for
+# vulnerabilities disclosed after it was built, and checks
 # whether MystenLabs/seal has released a newer version than the Dockerfile pins. A contingency image is
 # only useful if it is current on the day it is needed; a failing run or a new issue is the signal.
 
@@ -19,10 +20,25 @@ jobs:
     name: Rescan the published image
     runs-on: ubuntu-latest
     steps:
+      # Only exact `X.Y.Z` tags are releases; the `<commit>-<arch>` build intermediates never match.
+      - name: Newest published version tag
+        id: newest
+        env:
+          REPO: quay.io/${{ vars.QUAY_NAMESPACE || 'meddleware-org' }}/${{ env.IMAGE }}
+        run: |
+          command -v skopeo > /dev/null || { sudo apt-get update && sudo apt-get install -y --no-install-recommends skopeo; }
+          tag="$(skopeo list-tags "docker://${REPO}" | jq -r '.Tags[]' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
+          if [ -z "$tag" ]; then
+            echo "::error::no exact version tag (X.Y.Z) is published at ${REPO}"
+            exit 1
+          fi
+          echo "newest published release: ${tag}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
       - name: Trivy image scan (fail on fixable CRITICAL/HIGH)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: quay.io/${{ vars.QUAY_NAMESPACE || 'meddleware-org' }}/${{ env.IMAGE }}:latest
+          image-ref: quay.io/${{ vars.QUAY_NAMESPACE || 'meddleware-org' }}/${{ env.IMAGE }}:${{ steps.newest.outputs.tag }}
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true

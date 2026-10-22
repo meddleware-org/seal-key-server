@@ -27,11 +27,11 @@ custodial (its operator could decrypt what it serves), so seal-ui then shows tha
 
 ## Checks
 
-`CI` runs on every push and pull request: hadolint, actionlint, a Trivy configuration scan, the
+`CI` runs on every push and pull request: hadolint, actionlint, a Trivy configuration scan,
 and an amd64 build (not pushed; its notices stage generates the third-party licence texts and fails on an unaccepted licence) that is scanned with Trivy (fixable
 CRITICAL/HIGH fail) and smoke-tested by `scripts/smoke.sh` (non-root user, `seal-cli` starts,
 `key-server` refuses to start without configuration, licence files present). The release runs the same
-workflow on the tagged commit. A weekly workflow rescans the latest published image and opens an issue
+workflow on the tagged commit. A weekly workflow rescans the newest published release image (the highest exact version tag) and opens an issue
 when MystenLabs/seal publishes a newer release than the Dockerfile pins.
 
 ## Releases
@@ -43,7 +43,9 @@ archives in a short job that holds the credentials, scans the result, merges the
 build provenance.
 
 Deploy by the signed **index digest**, never by tag; see [SECURITY.md](SECURITY.md) for the `cosign verify`
-command. The `<commit>-amd64` / `<commit>-arm64` tags are build intermediates, and `latest` moves.
+command. Releases carry exact version tags only (`0.0.3`; no `latest`, no `0.0`: a floating tag gives a deployer
+nothing the digest does not). The `<commit>-amd64` / `<commit>-arm64` tags are build intermediates. The `latest`
+and `0.0` tags that releases up to 0.0.2 pushed stay on the registries unchanged and are never moved again.
 
 Repository configuration: secrets `QUAY_USERNAME`, `QUAY_TOKEN`, `DOCKERHUB_USERNAME`,
 `DOCKERHUB_TOKEN`; variables `QUAY_NAMESPACE`, `DOCKERHUB_NAMESPACE` (defaults `meddleware-org`,

@@ -172,11 +172,11 @@ PostgreSQL and uses a bash entrypoint.
 | F10–F12 | Positive | Pinned source, runtime, publish chain | re-verified for 0.0.2 |
 | F13 | Low | The SBOM and the image scan do not see the compiled crate graph | DEFERRED (pre-mainnet scan gate) |
 | F14 | Positive | CI-equals-release gate, credential-less builds, fail-closed licences | new |
-| F15 | Info | The image `version` label carries `v0.0.2` | ACCEPTED-RISK |
+| F15 | Info | The image `version` label carries `v0.0.2` | RESOLVED (workflow, commit pending; shipped by the next release) |
 | F16 | Info | arm64 is not scanned or smoke-tested before release | ACCEPTED-RISK |
 
-Counts (16 findings): 4 RESOLVED (F1, F2, F7, F9); 2 MITIGATED (F3, F5); 1 ADJUDICATED (F6);
-3 ACCEPTED-RISK (F4, F15, F16); 2 DEFERRED (F8, F13); 4 Positive (F10–F12, F14).
+Counts (16 findings): 5 RESOLVED (F1, F2, F7, F9, F15); 2 MITIGATED (F3, F5); 1 ADJUDICATED (F6);
+2 ACCEPTED-RISK (F4, F16); 2 DEFERRED (F8, F13); 4 Positive (F10–F12, F14).
 
 The first pass recorded findings only, by maintainer instruction; the base template's resolve-inline
 rule was applied in the code work between 2026-10-03 and 2026-10-09 (see the re-verification log).
@@ -352,7 +352,7 @@ tag), or at contingency time, when it is needed urgently.
   licence files present). Job timeouts added in `d7762e0`.
 - The release job scans the published index (`quay.io/…@<digest>`, Trivy, CRITICAL/HIGH fail) **before**
   `cosign sign` and the attestations (`docker-publish.yml`, merge job).
-- `.github/workflows/rescan.yml` runs weekly (Monday 06:17 UTC) and rescans `quay.io/…:latest`.
+- `.github/workflows/rescan.yml` runs weekly (Monday 06:17 UTC) and rescans the newest published release image: it lists the tags with `skopeo list-tags`, keeps the exact `X.Y.Z` ones and takes the highest (`0.0.2` today; there is no `latest` tag to follow since 2026-10-22, commit pending).
 - Evidence of operation: the `v0.0.2` `Publish (Docker)` run (37782631292) succeeded in 14m42s, and
   `CI` on `main` is green on 2026-10-09 (run 37962113785).
 - Residual: the CI image job and its smoke test are amd64 only (F16); no `cargo audit` / `cargo deny`
@@ -456,6 +456,15 @@ a failing scan would leave a moved but unsigned `latest`; consumers that verify 
 unaffected. Admission-time verification: the platform's sigstore policy-controller runs in warn mode
 and covers the `apps` and `registry` namespaces; the kit deploys to `blockchain`, so enforcement there
 is part of the F8 activation gate.
+
+Update 2026-10-22 (OQ3 decided; commit pending, takes effect with the next release): `docker-publish.yml` now tags a release with
+the exact version only (`type=semver,pattern={{version}}`, `latest=false`; no `{{major}}.{{minor}}`, no `latest`). The
+weekly rescan no longer reads `:latest`: it lists the registry's tags (`skopeo list-tags`), keeps the exact `X.Y.Z` ones and
+scans the highest (`0.0.2` today; dispatched run in the log entry). The `latest` and `0.0` tags that exist on both
+registries from releases up to 0.0.2 are not deleted by this change (deleting needs the registry credentials: maintainer,
+`OPERATOR_TASKS.md` "Image registry credentials"); they no longer move, and README and `SECURITY.md` say they are frozen and must not be used.
+The `<commit>-<arch>` intermediates are still published (unchanged). Why MITIGATED stays: the intermediates, the frozen
+floating tags and admission-time verification (F8).
 
 ### F6 — `seal-cli` (master-seed tooling) ships in the server image
 
@@ -701,7 +710,7 @@ read the upstream release notes and RustSec before activating the image (F8).
 
 ### F15 — The image `version` label carries `v0.0.2`, not `0.0.2`
 
-**Severity:** Info   **Disposition:** ACCEPTED-RISK (cosmetic; fix with the next release)
+**Severity:** Info   **Disposition:** RESOLVED (workflow, 2026-10-22, commit pending; observable at the next release)
 **Where:** `docker-publish.yml` build job (`build-args: VERSION=${{ github.ref_name }}`);
 `Dockerfile:52` (`org.opencontainers.image.version="${VERSION}"`).
 
@@ -711,7 +720,13 @@ and `config/images.yaml` say `0.0.2`. The README "Checks" paragraph also has a g
 and an amd64 build"). Neither affects security or deployment (the kit pins the digest).
 
 **Remediation / evidence:** pass `${{ github.ref_name }}` with the `v` stripped (as the `version` job
-already does for the tag check) at the next release. Accepted: label only; no consumer reads it.
+already does for the tag check) at the next release. Accepted at the baseline: label only; no consumer reads it.
+
+**Resolution 2026-10-22 (commit pending, takes effect with the next release):** the `build` job has a step
+`Image version` that writes `${TAG#v}` (the tag from `github.ref_name`, passed through `env`) to a step output, and
+`build-args: VERSION=` takes that output, so the label is `0.0.3` for tag `v0.0.3`, matching the tags, `VERSION` and
+`config/images.yaml`. The README's garbled "Checks" sentence is fixed. Not yet observable: only a release run shows the label
+(`skopeo inspect --config` on the new image should print `org.opencontainers.image.version` without a `v`). actionlint clean.
 
 ### F16 — arm64 is built but not scanned or smoke-tested before release
 
@@ -988,7 +1003,7 @@ A native arm64 CI job would remove the gap.
    activation (`OPERATOR_TASKS.md` "Mainnet Seal key servers").
 3. **OQ3** Should `latest` and `{major}.{minor}` tags be published at all for a security-critical,
    digest-deployed image (F5)? *(Decided 2026-10-22: stop publishing `latest` and `{major}.{minor}`; publish exact version tags only, deploy by digest. A floating tag
-   gives a deployer nothing the digest does not and invites a silent move. Requirement for the next release: remove those tags from `docker-publish.yml` and point the weekly rescan at the newest exact version tag; no workflow was edited in this pass.)*
+   gives a deployer nothing the digest does not and invites a silent move. Requirement for the next release: remove those tags from `docker-publish.yml` and point the weekly rescan at the newest exact version tag; done 2026-10-22 in `docker-publish.yml` and `rescan.yml`, commit pending; see F5.)*
 4. **OQ4** Keep both registries? Each adds a static credential (F3) and a verification target. *(Decided 2026-10-22: keep both quay.io and Docker Hub: two independent registries are what the digest consensus (workspace `refresh-digests.sh`) votes over; both are signed and verified identically, and the credentials are inventoried under `OPERATOR_TASKS.md` "Image registry credentials".)*
 
 ## Risks
@@ -1066,6 +1081,11 @@ A native arm64 CI job would remove the gap.
 - 2026-10-22 (audit close-out) — open questions decided; no code or workflow change.
   - **Decided 2026-10-22:** OQ3 (stop publishing `latest` and `{major}.{minor}`; exact version tags only, a requirement for the next release together with re-pointing the weekly rescan), OQ4 (keep both registries; the digest consensus needs two independent voters), OQ1 (the kit review is recorded in F8; no separate kit audit).
   - F8 stays DEFERRED to the contingency-activation gate; Section D unticked boxes are unchanged (admission-time signature verification, Permissioned allowlist, testnet rehearsal of `0.0.2`, scans at the review date, seed custody runbook, external review, registry credentials).
+
+- 2026-10-22 (fix wave, workflows; commit pending) — OQ3 and F15 implemented in the workflows; nothing shipped yet.
+  - **Done:** `docker-publish.yml` tags a release with the exact version only and passes the version without its `v` to the build (F5, F15, OQ3); `rescan.yml` scans the newest published exact version tag instead of `:latest` (F5). README and `SECURITY.md` say the old `latest` and `0.0` tags are frozen. Counts: **5 RESOLVED** (F1, F2, F7, F9, F15), 2 MITIGATED (F3, F5), 1 ADJUDICATED (F6), 2 ACCEPTED-RISK (F4, F16), 2 DEFERRED (F8, F13); 4 Positive.
+  - **Measured:** actionlint clean; the tag-listing command of `rescan.yml` run against quay.io selects `0.0.2` (the tags are `0`, `0.0`, `0.0.1`, `0.0.2`, `latest`, `<sha>-<arch>`, `sha256-…`); the workflow dispatched on `main` is recorded in the next entry.
+  - **Not verified here:** the release path (tag filter and label) needs a real tag run.
 
 ## Pre-save consistency checklist (this pass)
 

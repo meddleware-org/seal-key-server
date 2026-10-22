@@ -33,8 +33,8 @@ collected.
 ## Verifying an image
 
 Deploy by the **index digest** of a signed release, never by tag. The per-architecture tags
-(`<commit>-amd64`, `<commit>-arm64`) are build intermediates, and `latest` and `<major>.<minor>` move
-with each release.
+(`<commit>-amd64`, `<commit>-arm64`) are build intermediates. Releases carry exact version tags only; the
+`latest` and `<major>.<minor>` tags of releases up to 0.0.2 are frozen and must not be used.
 
 ```bash
 cosign verify \
@@ -48,5 +48,5 @@ The same signature, an SPDX SBOM attestation and a build-provenance attestation 
 
 ## Supported versions
 
-Only the latest published release receives fixes. A weekly workflow rescans the latest image and opens an
+Only the latest published release receives fixes. A weekly workflow rescans the newest published release image and opens an
 issue when upstream publishes a newer Seal release.
