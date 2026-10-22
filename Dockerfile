@@ -38,8 +38,12 @@ RUN mkdir -p /out \
     done \
  && cp LICENSE /out/LICENSE-seal
 
+# `cargo auditable` embeds the exact crate list of the upstream lockfile in each binary (a `.dep-v0`
+# section), so Trivy (CI, release, weekly rescan) and the SBOM see the compiled
+# crates and not only the distroless OS packages (F13). It does not change the code that is compiled.
 FROM source AS build
-RUN cargo build --locked --release --bin key-server --bin seal-cli \
+RUN cargo install --locked --version 0.7.7 cargo-auditable \
+ && cargo auditable build --locked --release --bin key-server --bin seal-cli \
  && install -D -m 0755 target/release/key-server /out/key-server \
  && install -D -m 0755 target/release/seal-cli /out/seal-cli
 

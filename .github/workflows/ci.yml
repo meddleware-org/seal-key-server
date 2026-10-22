@@ -57,12 +57,40 @@ jobs:
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,scope=amd64,mode=max
 
-      - name: Scan the image (fail on fixable CRITICAL/HIGH)
+      - name: Scan the image's OS packages (fail on fixable CRITICAL/HIGH)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: seal-key-server:ci
+          vuln-type: os
           severity: CRITICAL,HIGH
           exit-code: "1"
+          ignore-unfixed: true
+          version: v0.74.0
+
+      # `cargo auditable` (Dockerfile) embeds the crate list in each binary. This fails the job if the scanner
+      # stops seeing the compiled crates, so the crate scan below cannot go blind again (F13).
+      - name: The scanner sees the compiled crates
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: seal-key-server:ci
+          format: cyclonedx
+          output: trivy-crates.cdx.json
+          version: v0.74.0
+      - name: At least 100 crates are listed
+        run: |
+          n="$(jq '[.components[]? | select((.purl // "") | startswith("pkg:cargo/"))] | length' trivy-crates.cdx.json)"
+          echo "crates listed for the image: ${n}"
+          test "${n}" -ge 100
+
+      # Report only until the maintainer decides what to do with the advisories the pinned upstream release
+      # carries (audit F13, OQ5): a blocking gate would be red on every build until upstream updates them.
+      - name: Crate advisories (fixable CRITICAL/HIGH; report only)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: seal-key-server:ci
+          vuln-type: library
+          severity: CRITICAL,HIGH
+          exit-code: "0"
           ignore-unfixed: true
           version: v0.74.0
 

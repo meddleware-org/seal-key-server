@@ -170,13 +170,13 @@ PostgreSQL and uses a bash entrypoint.
 | F8 | Info here, **blocking before any deployment** | Deployment kit, seed custody, custodial posture | DEFERRED (contingency-activation gate; the kit was reviewed read-only and mostly holds) |
 | F9 | Info | No `SECURITY.md` | RESOLVED (0.0.2) |
 | F10–F12 | Positive | Pinned source, runtime, publish chain | re-verified for 0.0.2 |
-| F13 | Low | The SBOM and the image scan do not see the compiled crate graph | DEFERRED (pre-mainnet scan gate) |
+| F13 | Low | The SBOM and the image scan do not see the compiled crate graph | MITIGATED (visible from 0.0.3, commit pending; the advisory gate waits on OQ5) |
 | F14 | Positive | CI-equals-release gate, credential-less builds, fail-closed licences | new |
 | F15 | Info | The image `version` label carries `v0.0.2` | RESOLVED (workflow, commit pending; shipped by the next release) |
 | F16 | Info | arm64 is not scanned or smoke-tested before release | ACCEPTED-RISK |
 
-Counts (16 findings): 5 RESOLVED (F1, F2, F7, F9, F15); 2 MITIGATED (F3, F5); 1 ADJUDICATED (F6);
-2 ACCEPTED-RISK (F4, F16); 2 DEFERRED (F8, F13); 4 Positive (F10–F12, F14).
+Counts (16 findings): 5 RESOLVED (F1, F2, F7, F9, F15); 3 MITIGATED (F3, F5, F13); 1 ADJUDICATED (F6);
+2 ACCEPTED-RISK (F4, F16); 1 DEFERRED (F8); 4 Positive (F10–F12, F14).
 
 The first pass recorded findings only, by maintainer instruction; the base template's resolve-inline
 rule was applied in the code work between 2026-10-03 and 2026-10-09 (see the re-verification log).
@@ -668,9 +668,7 @@ release only; the weekly rescan and upstream watch).
 
 ### F13 — The SBOM and the image scan do not see the compiled Rust crate graph
 
-**Severity:** Low   **Disposition:** DEFERRED to the pre-mainnet scan gate (Section D: "image and
-configuration scans clean at the review date"; contingency activation is mainnet-only). Fix is a CI
-and Dockerfile change that this alignment did not make.
+**Severity:** Low   **Disposition:** MITIGATED (2026-10-22, commit pending, in the release after 0.0.2: the crates are visible to the SBOM and Trivy; whether the advisories gate the build is OQ5; Section D: "image and configuration scans clean at the review date" stays a pre-mainnet item)
 **Where:** `Dockerfile:41-44` (`cargo build --locked --release`); `docker-publish.yml` (SBOM from the
 published image with `anchore/sbom-action`); `ci.yml` / `rescan.yml` (Trivy image scans).
 
@@ -689,10 +687,38 @@ published image with `anchore/sbom-action`); `ci.yml` / `rescan.yml` (Trivy imag
 watch (F7) is the only signal, and it fires on a new upstream release, not on an advisory. No impact
 today: the image is not deployed, and the base-layer scans and licence gate work.
 
-**Remediation / evidence:** not fixed. Options: build with `cargo auditable build` (pinned) so Trivy and
+**Remediation / evidence (baseline):** not fixed. Options: build with `cargo auditable build` (pinned) so Trivy and
 the SBOM read the embedded list; or run `cargo audit` / `cargo deny check advisories` (pinned) against
 the checked-out upstream `Cargo.lock` in the CI image job, with an expiring allowlist (S5). Until then,
 read the upstream release notes and RustSec before activating the image (F8).
+
+**Resolution 2026-10-22 (visibility; commit pending, ships with the next release, version 0.0.3):**
+
+- **Dockerfile.** The `build` stage installs `cargo-auditable` 0.7.7 (`cargo install --locked`) and builds with
+  `cargo auditable build --locked --release --bin key-server --bin seal-cli`: the same compilation, with the exact crate list
+  of the upstream lockfile embedded in each binary (a `.dep-v0` section). Mechanism checked here on a small crate with
+  `panic = "abort"` and `strip = true` (the section survives `strip`; `cargo audit bin` then reported RUSTSEC-2020-0071 for
+  the pinned vulnerable `time` 0.1.43). The real build of the key server was **not** run locally (several hundred crates, tens of GB): CI builds it.
+- **CI (`ci.yml`, image job).** The blocking Trivy scan is limited to OS packages (`vuln-type: os`: exactly what it covered
+  before, because the binaries carried no crate list); a new step asks Trivy for a CycloneDX report and the job fails unless
+  at least 100 `pkg:cargo/` components are listed, so the scan cannot go blind again; a report-only step
+  (`vuln-type: library`, `exit-code: 0`) prints fixable CRITICAL/HIGH crate advisories.
+- **Release (`docker-publish.yml`).** The same split on the published digest, and a step that fails the release unless the
+  SPDX SBOM lists at least 100 `pkg:cargo/` packages before it is attested. **Weekly rescan (`rescan.yml`):** the same split on the newest release image.
+  A run on 0.0.2 (dispatched 2026-10-22, run 39803520429) shows Trivy found `Number of language-specific files num=0` in it,
+  which is the finding itself; the crate report starts to mean something for the first release built this way.
+- **What the pinned release carries (evidence, `cargo audit --file Cargo.lock` on `seal-v0.6.15` = `d0ab560e…`, RustSec database of
+  2026-10-22, 1,148 locked crates):** 16 vulnerabilities: `rustls` 0.23.37 (RUSTSEC-2026-0285, -0346, -0348, -0349; fixed in >= 0.23.45/46),
+  `rustls-webpki` 0.103.13 (RUSTSEC-2026-0382), `webpki-roots` 1.0.6 and `webpki-root-certs` 1.0.6 (RUSTSEC-2026-0381, -0383),
+  `quinn-proto` 0.11.15 (RUSTSEC-2026-0338 to -0342), `quick-xml` 0.38.4 (RUSTSEC-2026-0194, -0195), `imbl-sized-chunks` 0.1.3 (RUSTSEC-2026-0292), and `rsa` 0.9.10 (RUSTSEC-2023-0071, no fix), plus 11
+  unmaintained and 4 unsound warnings. Upstream's own `deny.toml` accepts the `rsa`, `quick-xml`, `rand`, `lru` and unmaintained
+  entries with reasons; it does not mention the `rustls`, `rustls-webpki`, `webpki-roots` and `quinn-proto` advisories. The newer release `seal-v0.6.16` (`54eff6a7…`, 2026-10-12;
+  an open upstream-watch issue) still carries 14 of them (`rustls` 0.23.45, `rustls-webpki` 0.103.15, `webpki-roots` 1.0.6, `quinn-proto` 0.11.15, `quick-xml`, `rsa`). Whether the key server's code paths reach the affected `rustls`/`quinn` code
+  was **not** analysed.
+- **Why MITIGATED, not RESOLVED, and why the crate advisories are not a blocking gate yet:** a blocking gate would be red on every build
+  of either release until upstream updates its lockfile, and the alternative (an allowlist) means accepting advisories in a TLS stack, a
+  decision that needs the reachability analysis. See OQ5. Until then the weekly rescan and the release log print the list, and the contingency
+  image stays undeployed (F8).
 
 ### F14 — Positive: release gate equals CI, credential-less builds, fail-closed licences
 
@@ -760,7 +786,7 @@ A native arm64 CI job would remove the gap.
 | A9 | Redistribution licence obligations | `notices` stage; `about.toml` | layer listing of the published image | HOLDS |
 | A10 | Pod security, probes, limits, deploy-by-digest | the kit | read 2026-10-09 (F8 items 3, 5, 8) | HOLDS in the kit; egress open and admission not covering `blockchain` (F8) |
 | A11 | Permissioned allowlist = policy original id; seed custody; custodial disclosure | the kit + seal-ui | kit procedure read (F8 items 1, 2, 7) | procedure present; values and seed custody are activation-time (F8) |
-| A12 | The SBOM and scans cover the dependencies compiled into the image | SBOM action, Trivy | decoded SBOM (12 OS packages), no `.dep-v0` section | **GAP** (F13) |
+| A12 | The SBOM and scans cover the dependencies compiled into the image | SBOM action, Trivy | 0.0.2: decoded SBOM 12 OS packages, no `.dep-v0` section. 0.0.3 (commit pending): `cargo auditable` in the Dockerfile; CI and the release assert at least 100 crates in the scanner's view and in the SPDX SBOM | visibility HOLDS from 0.0.3 (unreleased); advisories are reported, not gated (F13, OQ5) |
 | A13 | The release gate runs the same checks as CI | `verify` job in `docker-publish.yml` | workflow read | HOLDS (F14) |
 | A14 | No registry credential is present while third-party code compiles | `build` job has no login; `publish-arch` logs in to push only | workflow read | HOLDS (F3) |
 
@@ -773,7 +799,7 @@ A native arm64 CI job would remove the gap.
 | Dependency | Pinned | Liveness dependency? | CVE / scan status | Notes |
 | --- | --- | --- | --- | --- |
 | MystenLabs/seal `seal-v0.6.15` | tag + commit `d0ab560e…` | the whole server | upstream; still the latest release (2026-10-09) | Apache-2.0 (F1); weekly upstream watch (F7) |
-| Upstream crate graph | upstream `Cargo.lock` (committed upstream), `--locked` | compiled in | **not scanned** — no `cargo audit` / `cargo deny`, not in the SBOM (F13) | upstream `deny.toml` exists; licences gated by `about.toml` (F1) |
+| Upstream crate graph | upstream `Cargo.lock` (committed upstream), `--locked` | compiled in | visible to Trivy and in the SBOM from 0.0.3 (`cargo auditable`); advisories reported, not gated (F13, OQ5) | upstream `deny.toml` exists; licences gated by `about.toml` (F1) |
 | `rust:1.96.1-slim-bookworm` | digest | build | build stage only; not in the runtime image | excluded from Dependabot by design (moves with `SEAL_TAG`) |
 | Debian packages (build) | unpinned, accepted (F4) | build | — | not in runtime |
 | `distroless/cc-debian12:nonroot` | digest | runtime (glibc, CA) | Trivy image scan in CI, release and weekly rescan (fixable CRITICAL/HIGH fail) | Dependabot digest PRs (F7) |
@@ -840,7 +866,7 @@ A native arm64 CI job would remove the gap.
 | --- | --- |
 | Build | built on every push and PR (amd64) and on release (both architectures); notices stage included |
 | Static checks | hadolint, actionlint, Trivy configuration scan on every push and PR |
-| Scans | Trivy image scan before push (CI), before signing (release) and weekly; fixable CRITICAL/HIGH fail; crate graph not covered (F13) |
+| Scans | Trivy image scan before push (CI), before signing (release) and weekly; fixable CRITICAL/HIGH fail for OS packages; crates are visible from 0.0.3 and reported without failing (F13, OQ5) |
 | Runtime | `scripts/smoke.sh`: user `65532:65532`, `seal-cli --help`, `key-server` refuses to start without configuration naming `KEY_SERVER_OBJECT_ID`, licence files present; no probe test of a configured server (kit rehearsal only) |
 
 ### C.2 Hermetic vs. live paths
@@ -948,7 +974,7 @@ A native arm64 CI job would remove the gap.
 | IMG-M5 | image yes; pod context in the kit holds (read 2026-10-09) | F8 item 3 |
 | IMG-M6 | yes in the kit (overlay renders the digest from `config/images.yaml`) | F8 item 5 |
 | IMG-M7 | yes (both registries verified 2026-10-09) | F12 |
-| IMG-M8 | scan before signing: yes; licence notices: yes; verification command pinned to the workflow: yes (`SECURITY.md`); SBOM lists compiled dependencies: **no** | F2, F1, F9, F13 |
+| IMG-M8 | scan before signing: yes; licence notices: yes; verification command pinned to the workflow: yes (`SECURITY.md`); SBOM lists compiled dependencies: **no** in 0.0.2, yes from 0.0.3 (asserted in the release) | F2, F1, F9, F13 |
 
 **SEAL lens baseline (key-server side):**
 
@@ -962,7 +988,7 @@ A native arm64 CI job would remove the gap.
 
 | ID | Holds? | Evidence |
 | --- | --- | --- |
-| RS B.1 (`cargo audit` and `cargo deny` in CI) | no (not run on the upstream lockfile) | F13 |
+| RS B.1 (`cargo audit` and `cargo deny` in CI) | partly: Trivy reads the embedded crate list and reports (not gated); `cargo audit` over the pinned lockfile was run by hand 2026-10-22 (F13 evidence) | F13, OQ5 |
 | RS B.RS-1 (locked build, pinned toolchain, image per IMG) | yes | A3, F10 |
 | RS-M1–M9 | N/A (upstream code) | — |
 | AUTH-M2 (keys in a secret store, not source, env literals or logs) | as a procedure: `secretKeyRef` from a SOPS Secret, offline generation, never printed; no seed exists | F6, F8 item 2 |
@@ -981,7 +1007,7 @@ A native arm64 CI job would remove the gap.
   down (F8). The localnet rehearsal of 2026-10-02 (0.0.1) is in the kit README.
 - **S5** SHOULD run `cargo audit` and upstream's `cargo deny check` (pinned) against the checked-out
   upstream `Cargo.lock` in CI, with an expiring allowlist (F13).
-- **S6** SHOULD build with `cargo auditable` (pinned) so the SBOM and Trivy can read the crate list
+- **S6** *(done 2026-10-22, commit pending: F13)* SHOULD build with `cargo auditable` (pinned) so the SBOM and Trivy can read the crate list
   from the binaries (F13).
 - **S7** MAY run `smoke.sh` on a native arm64 runner (F16), and strip the `v` from the `VERSION` build
   argument (F15).
@@ -1005,16 +1031,23 @@ A native arm64 CI job would remove the gap.
    digest-deployed image (F5)? *(Decided 2026-10-22: stop publishing `latest` and `{major}.{minor}`; publish exact version tags only, deploy by digest. A floating tag
    gives a deployer nothing the digest does not and invites a silent move. Requirement for the next release: remove those tags from `docker-publish.yml` and point the weekly rescan at the newest exact version tag; done 2026-10-22 in `docker-publish.yml` and `rescan.yml`, commit pending; see F5.)*
 4. **OQ4** Keep both registries? Each adds a static credential (F3) and a verification target. *(Decided 2026-10-22: keep both quay.io and Docker Hub: two independent registries are what the digest consensus (workspace `refresh-digests.sh`) votes over; both are signed and verified identically, and the credentials are inventoried under `OPERATOR_TASKS.md` "Image registry credentials".)*
+5. **OQ5** *(new 2026-10-22)* F13: the pinned upstream release (`seal-v0.6.15`, and the newer `seal-v0.6.16`) carries known advisories in its
+   lockfile (16 and 14; list in F13). Should crate advisories gate the build, and on what terms? Options: (a) a blocking Trivy or `cargo audit`
+   gate with an expiring allowlist of reviewed advisories, each with the reason (upstream's `deny.toml` already gives reasons for `rsa`, `quick-xml`,
+   `rand` and `lru`); (b) a zero-tolerance blocking gate, red until upstream updates `rustls`, `quinn-proto` and `webpki-roots`; (c) report only,
+   as implemented now. Recommendation: (c) now (the image is undeployed; the report is visible in every CI run, release and weekly rescan), then (a)
+   once someone has checked whether the key server reaches the affected `rustls` and `quinn-proto` paths, and bump to a release that has the
+   fixes when upstream ships one. This is a risk-acceptance decision, so it is left to the maintainer.
 
 ## Risks
 
 - **Custody:** a deployed server's operator, or anyone with the seed, can decrypt everything sealed
   to it. This is acceptable only as a disclosed contingency.
 - **Upstream trust:** the image is as trustworthy as MystenLabs/seal at the pinned commit and its
-  crate graph, whose advisories are not checked here (F13).
+  crate graph, whose advisories are reported but not gated (F13, OQ5): the pinned release carries 16.
 - **Staleness at need:** a contingency image built long before use may carry known vulnerabilities;
   mitigated by the weekly rescan and upstream watch (F2, F7), but only for base layers and releases,
-  not crate advisories (F13).
+  and, from 0.0.3, crate advisories as a report (F13, OQ5).
 - **Seed loss:** content sealed to this server becomes permanently undecryptable if the seed is lost.
 - **Activation under pressure:** the placeholders, seed, RBAC, egress policy and admission check are
   all activation-time work (F8); a rehearsal on testnet with the current image is the mitigation (S4).
@@ -1086,6 +1119,12 @@ A native arm64 CI job would remove the gap.
   - **Done:** `docker-publish.yml` tags a release with the exact version only and passes the version without its `v` to the build (F5, F15, OQ3); `rescan.yml` scans the newest published exact version tag instead of `:latest` (F5). README and `SECURITY.md` say the old `latest` and `0.0` tags are frozen. Counts: **5 RESOLVED** (F1, F2, F7, F9, F15), 2 MITIGATED (F3, F5), 1 ADJUDICATED (F6), 2 ACCEPTED-RISK (F4, F16), 2 DEFERRED (F8, F13); 4 Positive.
   - **Measured:** actionlint clean; the tag-listing command of `rescan.yml` run against quay.io selects `0.0.2` (the tags are `0`, `0.0`, `0.0.1`, `0.0.2`, `latest`, `<sha>-<arch>`, `sha256-…`); the workflow dispatched on `main` is recorded in the next entry.
   - **Not verified here:** the release path (tag filter and label) needs a real tag run.
+
+- 2026-10-22 (fix wave, image; commit pending, version 0.0.3 not released) — the crate graph becomes visible (F13).
+  - **Done:** `cargo auditable` in the Dockerfile `build` stage; CI, release and weekly rescan split the Trivy scan into a blocking OS-package scan and a report-only crate scan; CI asserts at least 100 crates in Trivy's CycloneDX view and the release asserts the same on the SPDX SBOM; `VERSION` 0.0.3. F13 DEFERRED to MITIGATED; OQ5 recorded (whether crate advisories gate the build); S6 done.
+  - **Found:** the pinned `seal-v0.6.15` lockfile has 16 RustSec vulnerabilities (rustls, rustls-webpki, webpki-roots, quinn-proto, quick-xml, imbl-sized-chunks, rsa) and `seal-v0.6.16` still 14 (`cargo audit --file Cargo.lock`, database of 2026-10-22). Not analysed for reachability; the image is undeployed.
+  - **Measured:** actionlint clean; the `cargo auditable` mechanism on a small `strip = true` crate (section present, `cargo audit bin` finds the advisory); the existing amd64 image (0.0.2) shows `num=0` language-specific files under Trivy. **Not run locally:** the full image build (see F13); the CI result on the branch is recorded below if it was run.
+  - Counts: **5 RESOLVED, 3 MITIGATED (F3, F5, F13), 1 ADJUDICATED, 2 ACCEPTED-RISK, 1 DEFERRED (F8)**; 4 Positive.
 
 ## Pre-save consistency checklist (this pass)
 

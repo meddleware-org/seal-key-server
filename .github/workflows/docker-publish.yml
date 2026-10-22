@@ -194,12 +194,25 @@ jobs:
           DIGEST=$(docker buildx imagetools inspect "${PRIMARY}" --format '{{.Manifest.Digest}}')
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
-      - name: Scan the published image (fail on fixable CRITICAL/HIGH)
+      - name: Scan the published image's OS packages (fail on fixable CRITICAL/HIGH)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: quay.io/${{ vars.QUAY_NAMESPACE || 'meddleware-org' }}/${{ env.IMAGE }}@${{ steps.merge.outputs.digest }}
+          vuln-type: os
           severity: CRITICAL,HIGH
           exit-code: "1"
+          ignore-unfixed: true
+          version: v0.74.0
+
+      # Report only until the maintainer decides what to do with the advisories the pinned upstream release
+      # carries (audit F13, OQ5); the crates are visible because the binaries are built with `cargo auditable`.
+      - name: Crate advisories of the published image (fixable CRITICAL/HIGH; report only)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: quay.io/${{ vars.QUAY_NAMESPACE || 'meddleware-org' }}/${{ env.IMAGE }}@${{ steps.merge.outputs.digest }}
+          vuln-type: library
+          severity: CRITICAL,HIGH
+          exit-code: "0"
           ignore-unfixed: true
           version: v0.74.0
 
@@ -222,6 +235,13 @@ jobs:
           format: spdx-json
           output-file: sbom.spdx.json
           upload-artifact: false
+
+      # The SBOM must list the crates compiled into the binaries, not only the distroless OS packages (F13).
+      - name: The SBOM lists the compiled crates
+        run: |
+          n="$(jq '[.packages[]? | .externalRefs[]? | select(.referenceType == "purl") | .referenceLocator | select(startswith("pkg:cargo/"))] | length' sbom.spdx.json)"
+          echo "crates in the SBOM: ${n}"
+          test "${n}" -ge 100
 
       - name: Attest SBOM (keyless)
         env:
