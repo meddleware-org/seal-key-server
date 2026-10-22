@@ -50,3 +50,8 @@ The same signature, an SPDX SBOM attestation and a build-provenance attestation 
 
 Only the latest published release receives fixes. A weekly workflow rescans the newest published release image and opens an
 issue when upstream publishes a newer Seal release.
+
+Known advisories in the compiled Rust dependencies of the pinned upstream release (the crate list is embedded in the binaries and scanned by
+Trivy) are **reported, not gated**, while this contingency image is not deployed. Before the kit is activated or the next upstream Seal release is
+adopted, each advisory gets a documented reachability review and either a fix by upgrading or an expiring allowlist entry; the procedure is under
+OQ5 in `docs/audit/seal-key-server-audit.md`.

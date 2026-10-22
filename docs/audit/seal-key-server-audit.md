@@ -909,6 +909,7 @@ A native arm64 CI job would remove the gap.
 - [x] signature, SBOM attestation and provenance on every pushed image (both registries decoded
   2026-10-09; `verify-digests.sh` 16/16) — F12
 - [ ] image and configuration scans clean at the review date — config and base-layer image scans are
+- [ ] reachability review of the upstream crate advisories done and an expiring allowlist gate enabled (OQ5, F13) — maintainer, before activation of the kit or the next upstream release, whichever is first
   green (CI 2026-10-09); the crate graph is not covered — F13 (mainnet-blocked: contingency is a
   mainnet fallback)
 - [x] licence texts shipped — F1
@@ -1041,7 +1042,27 @@ A native arm64 CI job would remove the gap.
    `rand` and `lru`); (b) a zero-tolerance blocking gate, red until upstream updates `rustls`, `quinn-proto` and `webpki-roots`; (c) report only,
    as implemented now. Recommendation: (c) now (the image is undeployed; the report is visible in every CI run, release and weekly rescan), then (a)
    once someone has checked whether the key server reaches the affected `rustls` and `quinn-proto` paths, and bump to a release that has the
-   fixes when upstream ships one. This is a risk-acceptance decision, so it is left to the maintainer.
+   fixes when upstream ships one. This is a risk-acceptance decision.
+   *(Decided 2026-10-22 by the maintainer: **(c) report only for the time being**, then (a). Zero tolerance (b) was considered and rejected as the
+   better practice here: it would stay red for every upstream release, including the newest (14 advisories in `seal-v0.6.16`), so it would only teach
+   everyone to ignore the gate, and an unreviewed allowlist would accept advisories in a TLS stack without evidence. The accepted risk is bounded: the
+   image is not deployed (contingency kit), the report is printed in every CI run, release and weekly rescan, and the weekly rescan opens an issue on a
+   fixable OS-package HIGH.)*
+
+   **Reachability review (the procedure that moves this from report-only to an allowlist gate; not yet done).** Owner: the maintainer, at the first of
+   (i) activation of the kit, (ii) the next upstream Seal release, (iii) a new advisory against `rustls`, `rustls-webpki`, `quinn-proto`, `webpki-roots`,
+   `rsa`, `quick-xml` or `rust-openssl`. For each advisory in the report (`cargo audit bin` over the shipped binary, or `cargo audit` over the pinned
+   upstream `Cargo.lock`, plus the Trivy crate list):
+   1. record the advisory id, affected crate and version, the fixed version, and whether upstream's latest release already fixes it (then the action is
+      to bump the pinned release, not to allowlist);
+   2. decide reachability from the key server's actual behaviour, with evidence: which of the server's code paths call the affected API (`cargo tree -i
+      <crate>` for the dependency path, a grep of upstream sources at the pinned tag for the affected function, and whether the code runs on untrusted
+      input: the key server accepts requests from the internet and calls the full node and, for Open mode, nothing else);
+   3. classify as REACHABLE (fix or upgrade before activation), NOT REACHABLE (allowlist), or UNKNOWN (treated as reachable);
+   4. every allowlist entry carries the advisory id, the reason, the evidence reference, and an expiry date (at most 90 days), and the gate fails when an
+      entry expires, the pattern the web repos' `audit-gate.mjs` already uses;
+   5. enable the blocking gate (a): Trivy/`cargo audit` fails on any advisory not allowlisted, and tick the Section D box below.
+   Until then nothing should be activated on the strength of the report alone: activation is itself blocked by this review (Section D).
 
 ## Risks
 
@@ -1059,6 +1080,8 @@ A native arm64 CI job would remove the gap.
 ---
 
 ## Re-verification log
+
+- 2026-10-22 (later) — OQ5 decided by the maintainer: crate advisories are report-only for now; the reachability-review procedure that leads to an expiring allowlist gate is documented under OQ5 and tracked as a Section D box; zero tolerance was weighed and rejected (red for every upstream release).
 
 - 2026-10-03 — first-pass baseline at `bea51d9` (tag `v0.0.1`).
   - **Lenses:** AUDIT_TEMPLATE.md (2026-10-02) + IMG (2026-09-30) + SEAL (2026-09-30, key-server
