@@ -698,7 +698,7 @@ read the upstream release notes and RustSec before activating the image (F8).
   `cargo auditable build --locked --release --bin key-server --bin seal-cli`: the same compilation, with the exact crate list
   of the upstream lockfile embedded in each binary (a `.dep-v0` section). Mechanism checked here on a small crate with
   `panic = "abort"` and `strip = true` (the section survives `strip`; `cargo audit bin` then reported RUSTSEC-2020-0071 for
-  the pinned vulnerable `time` 0.1.43). The real build of the key server was **not** run locally (several hundred crates, tens of GB): CI builds it.
+  the pinned vulnerable `time` 0.1.43). The real build of the key server was not run locally (several hundred crates, tens of GB); CI built it (next bullets).
 - **CI (`ci.yml`, image job).** The blocking Trivy scan is limited to OS packages (`vuln-type: os`: exactly what it covered
   before, because the binaries carried no crate list); a new step asks Trivy for a CycloneDX report and the job fails unless
   at least 100 `pkg:cargo/` components are listed, so the scan cannot go blind again; a report-only step
@@ -715,6 +715,10 @@ read the upstream release notes and RustSec before activating the image (F8).
   entries with reasons; it does not mention the `rustls`, `rustls-webpki`, `webpki-roots` and `quinn-proto` advisories. The newer release `seal-v0.6.16` (`54eff6a7…`, 2026-10-12;
   an open upstream-watch issue) still carries 14 of them (`rustls` 0.23.45, `rustls-webpki` 0.103.15, `webpki-roots` 1.0.6, `quinn-proto` 0.11.15, `quick-xml`, `rsa`). Whether the key server's code paths reach the affected `rustls`/`quinn` code
   was **not** analysed.
+- **CI evidence (branch `ci-crates-check`, run 39804059909, success, 9 min with the build cache; the branch is deleted):** the new Dockerfile built, the smoke test passed,
+  Trivy listed **753** `pkg:cargo/` components in the image, the OS-package scan was clean and the report-only crate scan printed **5 fixable HIGH** findings in each of
+  `key-server` and `seal-cli` (`rustbinary`): `openssl` 0.10.76 (rust-openssl, fixed in 0.10.78: CVE-2026-41676, -41678, -41681, -41898, -42327). Trivy and `cargo audit` list different sets (Trivy's
+  database adds the rust-openssl CVEs; `cargo audit` the RustSec `rustls`/`quinn-proto` entries), which is why the gate decision is OQ5 and not a quick allowlist. A blocking crate gate would have failed this run.
 - **Why MITIGATED, not RESOLVED, and why the crate advisories are not a blocking gate yet:** a blocking gate would be red on every build
   of either release until upstream updates its lockfile, and the alternative (an allowlist) means accepting advisories in a TLS stack, a
   decision that needs the reachability analysis. See OQ5. Until then the weekly rescan and the release log print the list, and the contingency
@@ -1123,7 +1127,7 @@ A native arm64 CI job would remove the gap.
 - 2026-10-22 (fix wave, image; commit pending, version 0.0.3 not released) — the crate graph becomes visible (F13).
   - **Done:** `cargo auditable` in the Dockerfile `build` stage; CI, release and weekly rescan split the Trivy scan into a blocking OS-package scan and a report-only crate scan; CI asserts at least 100 crates in Trivy's CycloneDX view and the release asserts the same on the SPDX SBOM; `VERSION` 0.0.3. F13 DEFERRED to MITIGATED; OQ5 recorded (whether crate advisories gate the build); S6 done.
   - **Found:** the pinned `seal-v0.6.15` lockfile has 16 RustSec vulnerabilities (rustls, rustls-webpki, webpki-roots, quinn-proto, quick-xml, imbl-sized-chunks, rsa) and `seal-v0.6.16` still 14 (`cargo audit --file Cargo.lock`, database of 2026-10-22). Not analysed for reachability; the image is undeployed.
-  - **Measured:** actionlint clean; the `cargo auditable` mechanism on a small `strip = true` crate (section present, `cargo audit bin` finds the advisory); the existing amd64 image (0.0.2) shows `num=0` language-specific files under Trivy. **Not run locally:** the full image build (see F13); the CI result on the branch is recorded below if it was run.
+  - **Measured:** actionlint clean; the `cargo auditable` mechanism on a small `strip = true` crate (section present, `cargo audit bin` finds the advisory); the existing amd64 image (0.0.2) shows `num=0` language-specific files under Trivy. **Not run locally:** the full image build; CI ran it on a branch instead (run 39804059909: success, 753 crates visible, 5 fixable HIGH crate findings per binary reported, smoke test passed).
   - Counts: **5 RESOLVED, 3 MITIGATED (F3, F5, F13), 1 ADJUDICATED, 2 ACCEPTED-RISK, 1 DEFERRED (F8)**; 4 Positive.
 
 ## Pre-save consistency checklist (this pass)
