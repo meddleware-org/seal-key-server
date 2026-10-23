@@ -4,7 +4,7 @@ Contingency container image of the upstream [MystenLabs/seal](https://github.com
 key server. It is **not deployed**: Sealed Storage uses key servers run by independent operators
 (workspace `docs/architecture/ADR-0002-seal-key-servers.md`). This image exists so a self-hosted
 server can be stood up quickly if those servers become unavailable. A self-hosted server is
-custodial (its operator could decrypt what it serves), so seal-ui then shows that notice.
+custodial (its operator could decrypt what it serves), so sealed-storage-ui then shows that notice.
 
 ## What is in the image
 

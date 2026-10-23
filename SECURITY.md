@@ -25,7 +25,7 @@ acknowledgement within 3 business days.
 ## A self-hosted key server is custodial
 
 Whoever runs a key server holds the master seed and could decrypt anything it serves keys for. Running
-this image makes MeddleWare that custodian, so Sealed Storage then shows that notice (seal-ui). Generate
+this image makes MeddleWare that custodian, so Sealed Storage then shows that notice (sealed-storage-ui). Generate
 the master seed offline (a local `docker run --rm` with no log shipping, or an air-gapped machine) and
 store it directly in SOPS; never generate or print it in the cluster, where container output is
 collected.

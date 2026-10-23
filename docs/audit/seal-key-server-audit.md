@@ -85,8 +85,8 @@ from `config/images.yaml` (`0.0.2` @ `sha256:8609cbbe…`); `kubectl kustomize` 
 | Seal SDK | n/a (server). Upstream `key-server` at `seal-v0.6.15`, still the latest upstream release on 2026-10-09 (`git ls-remote` and `releases/latest`). |
 | Key-server mode | Permissioned (per the README and kit), allowlisting only Meddleware's `seal_policies` package |
 | Key servers per network | none deployed. Mainnet uses Overclock, NodeInfra and H2O Nodes in Open mode, threshold 2 (ADR-0002, D24). |
-| Threshold | set by consumers (seal-ui). A lone self-hosted server means a t = 1 custodial committee; the kit's runbook step 7 keeps t = 2 while an independent server remains (F8, OQ2). |
-| Policy package to allowlist | the kit targets **mainnet**: the `seal_policies` original id, filled at activation (not yet published on mainnet). Testnet, for rehearsal: `0x0c8f73490b14836e6a7a724fb46b242cb061d04a5f193fd637159997f8a1773d` (republished 2026-10-09; the earlier `0x61c4aa…` is superseded and immutable — see `seal-policies-sui-audit.md`). |
+| Threshold | set by consumers (sealed-storage-ui). A lone self-hosted server means a t = 1 custodial committee; the kit's runbook step 7 keeps t = 2 while an independent server remains (F8, OQ2). |
+| Policy package to allowlist | the kit targets **mainnet**: the `seal_policies` original id, filled at activation (not yet published on mainnet). Testnet, for rehearsal: `0x0c8f73490b14836e6a7a724fb46b242cb061d04a5f193fd637159997f8a1773d` (republished 2026-10-09; the earlier `0x61c4aa…` is superseded and immutable — see `sealed-storage-sui-audit.md`). |
 
 **Review date:** 2026-10-03; re-verified 2026-10-09
 **Reviewer:** Internal review
@@ -203,10 +203,10 @@ rule was applied in the code work between 2026-10-03 and 2026-10-09 (see the re-
 
 | Party | Power | Consequence / bound |
 | --- | --- | --- |
-| **Operator of this server (Meddleware, if deployed)** | Holds the master seed; derives keys for every approved identity | Can decrypt everything sealed to this server. As the only server (t = 1) the system is **fully custodial**; with t ≥ 2 plus independent operators, it is one share. seal-ui marks this with `VITE_SEAL_KEY_CUSTODY_{NET}=operator` (F8, OQ2). |
+| **Operator of this server (Meddleware, if deployed)** | Holds the master seed; derives keys for every approved identity | Can decrypt everything sealed to this server. As the only server (t = 1) the system is **fully custodial**; with t ≥ 2 plus independent operators, it is one share. sealed-storage-ui marks this with `VITE_SEAL_KEY_CUSTODY_{NET}=operator` (F8, OQ2). |
 | Anyone with the `MASTER_KEY` env value / SOPS Secret | The same as the operator | Seed custody is the kit's (F8, B.AUTH-1) |
 | Allowlisted policy package (Permissioned mode) | Which identities can ever be served | Must be the policy's **first-published (original) id**. Each `seal_policies` republish creates a new namespace that must be added; dropping an old one strands its content (F8). |
-| The full node the server dry-runs against | The chain view used for `seal_approve*` | Stale or divergent state; clock skew for `timelock` (`seal-policies-sui-audit.md` F26) |
+| The full node the server dry-runs against | The chain view used for `seal_approve*` | Stale or divergent state; clock skew for `timelock` (`sealed-storage-sui-audit.md` F26) |
 | Metrics endpoint (9184) | Operational data | Not routed by the kit's ingress (`/v1/` prefix only); network policy admits only the `monitoring` namespace (F8) |
 | Image supply chain | The server's code | Matrix above |
 
@@ -234,8 +234,8 @@ lines of action pins from the tagged ones). The first pass covered `bea51d9` = `
   `config/images.yaml` entry (F8);
 - workspace ADR-0002 and `OPERATOR_TASKS.md` ("Mainnet Seal key servers", "Image registry
   credentials");
-- `seal-ui/src/config.ts` and seal-ui `CLAUDE.md` (custody notice, defaults);
-- `seal-policies-sui` (the package to allowlist).
+- `sealed-storage-ui/src/config.ts` and sealed-storage-ui `CLAUDE.md` (custody notice, defaults);
+- `sealed-storage-sui` (the package to allowlist).
 
 **Out of scope:**
 
@@ -534,7 +534,7 @@ contingency deployment, each item below must hold, with evidence.
 
 1. **Allowlist = original id.** Permissioned mode allowlists exactly the `seal_policies` **original
    id(s)**: testnet `0x61c4aa…`, plus any superseded namespace whose content must stay decryptable
-   (`seal-policies-sui-audit.md` F27 / OQ11). A republish adds a namespace. The client key per package
+   (`sealed-storage-sui-audit.md` F27 / OQ11). A republish adds a namespace. The client key per package
    is derived with `seal-cli` and recorded.
 2. **Seed custody.** The master seed (`MASTER_KEY` env, read by `crates/key-server/src/master_keys.rs`)
    is:
@@ -552,8 +552,8 @@ contingency deployment, each item below must hold, with evidence.
 5. **Deploy by digest.** The image is pinned to the index digest in `config/images.yaml`, with
    signature verification at admission (F5).
 6. **On-chain registration.** The key-server object is registered on-chain by a recorded key; its URL
-   and public key are documented; seal-ui's `VITE_SEAL_SERVER_OBJECT_IDS_{NET}` is updated.
-7. **Custodial disclosure.** `VITE_SEAL_KEY_CUSTODY_{NET}=operator` is set so seal-ui shows the
+   and public key are documented; sealed-storage-ui's `VITE_SEAL_SERVER_OBJECT_IDS_{NET}` is updated.
+7. **Custodial disclosure.** `VITE_SEAL_KEY_CUSTODY_{NET}=operator` is set so sealed-storage-ui shows the
    custodial notice. The threshold decision is recorded (OQ2): a single self-hosted server is t = 1
    and fully custodial.
 8. **Probes and limits** are set, and the health endpoint reveals nothing sensitive.
@@ -789,7 +789,7 @@ A native arm64 CI job would remove the gap.
 | A8 | Pre-release build, scan and smoke test | `ci.yml`, called by the release | green runs; F2 | HOLDS (amd64; F16) |
 | A9 | Redistribution licence obligations | `notices` stage; `about.toml` | layer listing of the published image | HOLDS |
 | A10 | Pod security, probes, limits, deploy-by-digest | the kit | read 2026-10-09 (F8 items 3, 5, 8) | HOLDS in the kit; egress open and admission not covering `blockchain` (F8) |
-| A11 | Permissioned allowlist = policy original id; seed custody; custodial disclosure | the kit + seal-ui | kit procedure read (F8 items 1, 2, 7) | procedure present; values and seed custody are activation-time (F8) |
+| A11 | Permissioned allowlist = policy original id; seed custody; custodial disclosure | the kit + sealed-storage-ui | kit procedure read (F8 items 1, 2, 7) | procedure present; values and seed custody are activation-time (F8) |
 | A12 | The SBOM and scans cover the dependencies compiled into the image | SBOM action, Trivy | 0.0.2: decoded SBOM 12 OS packages, no `.dep-v0` section. 0.0.3 (commit pending): `cargo auditable` in the Dockerfile; CI and the release assert at least 100 crates in the scanner's view and in the SPDX SBOM | visibility HOLDS from 0.0.3 (unreleased); advisories are reported, not gated (F13, OQ5) |
 | A13 | The release gate runs the same checks as CI | `verify` job in `docker-publish.yml` | workflow read | HOLDS (F14) |
 | A14 | No registry credential is present while third-party code compiles | `build` job has no login; `publish-arch` logs in to push only | workflow read | HOLDS (F3) |
@@ -846,8 +846,8 @@ A native arm64 CI job would remove the gap.
 | Item | State |
 | --- | --- |
 | Who operates | Meddleware (custodial) — only on contingency. Normal operation: Overclock, NodeInfra and H2O Nodes, Open mode, 2-of-3 (D24). |
-| How the set and threshold change | seal-ui env (`VITE_SEAL_SERVER_OBJECT_IDS_{NET}`, `VITE_SEAL_THRESHOLD`, `VITE_SEAL_KEY_CUSTODY_{NET}=operator`); kit runbook step 7 |
-| Existing ciphertexts | Stay bound to the servers in their headers. Content sealed to the independent committee is **not** decryptable by this server; switching servers needs re-sealing (seal-client `describeCiphertext`; seal-ui's re-seal action) while the old servers are still reachable. |
+| How the set and threshold change | sealed-storage-ui env (`VITE_SEAL_SERVER_OBJECT_IDS_{NET}`, `VITE_SEAL_THRESHOLD`, `VITE_SEAL_KEY_CUSTODY_{NET}=operator`); kit runbook step 7 |
+| Existing ciphertexts | Stay bound to the servers in their headers. Content sealed to the independent committee is **not** decryptable by this server; switching servers needs re-sealing (sealed-storage-client `describeCiphertext`; sealed-storage-ui's re-seal action) while the old servers are still reachable. |
 | Permissioned allowlist | Must be the `seal_policies` original id(s) (F8) |
 
 ### B.AUTH-1 Key & credential inventory (AUTH lens, key material only)
@@ -931,8 +931,8 @@ A native arm64 CI job would remove the gap.
   - missing pieces: the credential inventory (F3, maintainer) and visibility of the compiled crate
     graph in the SBOM and scans (F13).
 - **Wire-format coupling:** none in this repository. The Seal protocol coupling between this server
-  version and `@mysten/seal` in seal-client is upstream's compatibility promise. Re-verify against
-  seal-client's SDK version when bumping `SEAL_TAG`.
+  version and `@mysten/seal` in sealed-storage-client is upstream's compatibility promise. Re-verify against
+  sealed-storage-client's SDK version when bumping `SEAL_TAG`.
 - **On-chain-truth boundary:** a self-hosted key server is an off-chain custodian of decryption power.
   The on-chain policies still gate key release, but the operator can bypass them with the seed.
   ADR-0002's choice of independent operators (mainnet: Overclock, NodeInfra, H2O Nodes, Open mode,
@@ -986,7 +986,7 @@ A native arm64 CI job would remove the gap.
 | ID | Holds? | Evidence |
 | --- | --- | --- |
 | SEAL-M4 | a single self-hosted server gives no confidentiality beyond one operator; the kit keeps t = 2 while an independent server remains; decision recorded as OQ2 | F8 item 7 |
-| SEAL-M8 | the kit's allowlist must name the original id; the policy UpgradeCap's power over existing content is noted in `seal-policies-sui-audit.md` | F8 item 1 |
+| SEAL-M8 | the kit's allowlist must name the original id; the policy UpgradeCap's power over existing content is noted in `sealed-storage-sui-audit.md` | F8 item 1 |
 | SEAL-M1–M3, M5–M7 | N/A (client-side) | — |
 
 **RUST lens (build-scoped) and AUTH lens (key material):**
@@ -1008,7 +1008,7 @@ A native arm64 CI job would remove the gap.
 - **S3** MAY publish a separate `-tools` image with `seal-cli`, keeping the server image to
   `key-server` only — not pursued; F6 is adjudicated with the offline-seed rule.
 - **S4** SHOULD document and run a contingency rehearsal on testnet with `0.0.2`: deploy to a test
-  namespace, register a test key-server object, decrypt a time-lock item through seal-client, then tear
+  namespace, register a test key-server object, decrypt a time-lock item through sealed-storage-client, then tear
   down (F8). The localnet rehearsal of 2026-10-02 (0.0.1) is in the kit README.
 - **S5** SHOULD run `cargo audit` and upstream's `cargo deny check` (pinned) against the checked-out
   upstream `Cargo.lock` in CI, with an expiring allowlist (F13).
@@ -1027,7 +1027,7 @@ A native arm64 CI job would remove the gap.
    move the kit review there.
    *(Decided 2026-10-22: the kit review is recorded in F8 by date, with its read-only result; no separate kit audit. The cluster-side review stays with the platform audit.)*
 2. **OQ2** On contingency, does Meddleware run one server (t = 1, fully custodial) or several
-   independently operated ones? Is the custodial notice in seal-ui sufficient disclosure for users
+   independently operated ones? Is the custodial notice in sealed-storage-ui sufficient disclosure for users
    whose content was sealed under the independent committee and must be re-sealed? *Open
    (maintainer):* the kit and ADR-0002 prepare t = 2 with a remaining independent server and the
    custody notice only when this server alone meets the threshold; the final decision is taken at
