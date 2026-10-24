@@ -58,4 +58,4 @@ image if the release's `rust-toolchain.toml` changed), bump `VERSION`, tag.
 
 The deployment kit and runbook live in the infrastructure workspace:
 `post-bootstrap/_contingency/seal-key-server/` (Permissioned mode, allowlisting only MeddleWare's
-`seal_policies` package; the master seed is generated on the cluster node and stored with SOPS).
+`sealed_storage` package; the master seed is generated on the cluster node and stored with SOPS).
