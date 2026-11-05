@@ -37,8 +37,11 @@ Not triggered:
 | TS, VUE, WALRUS, SUI_CLIENT, WORKERS, GO, SITE, PROXY | No matching code. |
 
 **Deployment status:** contingency, not deployed; mainnet key servers are Overclock/NodeInfra/H2O Open
-mode 2-of-3 (D24). Image `0.0.2` is published and cosign-signed, and pinned in `config/images.yaml`
-as a contingency entry (index `sha256:8609cbbe…5497134`). The kit is not discovered by `apply.sh`.
+mode 2-of-3 (D24). Image `0.0.3` (tag `v0.0.3` = `b13244a`, released 2026-10-22, `Publish (Docker)` run
+39809249229 green) is published and cosign-signed, and pinned in `config/images.yaml` as a contingency
+entry (digest `sha256:012f71ef…803bcd`; the 0.0.2 index `sha256:8609cbbe…5497134` is superseded). The kit
+is not discovered by `apply.sh`. Its weekly rescan has been red since 2026-10-26 on a base-image advisory
+(F17).
 
 **Images:**
 
@@ -88,7 +91,7 @@ from `config/images.yaml` (`0.0.2` @ `sha256:8609cbbe…`); `kubectl kustomize` 
 | Threshold | set by consumers (sealed-storage-ui). A lone self-hosted server means a t = 1 custodial committee; the kit's runbook step 7 keeps t = 2 while an independent server remains (F8, OQ2). |
 | Policy package to allowlist | the kit targets **mainnet**: the `seal_policies` original id, filled at activation (not yet published on mainnet). Testnet, for rehearsal: `0x0c8f73490b14836e6a7a724fb46b242cb061d04a5f193fd637159997f8a1773d` (republished 2026-10-09; the earlier `0x61c4aa…` is superseded and immutable — see `sealed-storage-sui-audit.md`). |
 
-**Review date:** 2026-10-03; re-verified 2026-10-09
+**Review date:** 2026-10-03; re-verified 2026-10-09; delta review 2026-11-05 (0.0.3 released 2026-10-22; Actions bump; F17)
 **Reviewer:** Internal review
 **Severity ceiling:** High.
 
@@ -156,7 +159,7 @@ PostgreSQL and uses a bash entrypoint.
   - The cosign signature was also verified by `bootstrap/images/verify-digests.sh` on 2026-10-09
     (16/16 images valid, this one included).
 
-**Dispositions (F1–F16):**
+**Dispositions (F1–F17):**
 
 | ID | Severity | Finding | Disposition |
 | --- | --- | --- | --- |
@@ -170,13 +173,14 @@ PostgreSQL and uses a bash entrypoint.
 | F8 | Info here, **blocking before any deployment** | Deployment kit, seed custody, custodial posture | DEFERRED (contingency-activation gate; the kit was reviewed read-only and mostly holds) |
 | F9 | Info | No `SECURITY.md` | RESOLVED (0.0.2) |
 | F10–F12 | Positive | Pinned source, runtime, publish chain | re-verified for 0.0.2 |
-| F13 | Low | The SBOM and the image scan do not see the compiled crate graph | MITIGATED (visible from 0.0.3, commit pending; the advisory gate waits on OQ5) |
+| F13 | Low | The SBOM and the image scan do not see the compiled crate graph | MITIGATED (visible from 0.0.3, released 2026-10-22; the advisory gate waits on OQ5) |
 | F14 | Positive | CI-equals-release gate, credential-less builds, fail-closed licences | new |
 | F15 | Info | The image `version` label carries `v0.0.2` | RESOLVED (workflow, commit pending; shipped by the next release) |
 | F16 | Info | arm64 is not scanned or smoke-tested before release | ACCEPTED-RISK |
+| F17 | Low | The weekly rescan is red: `libssl3` of the distroless base carries a fixable HIGH (CVE-2026-84782) and no fixed base is published yet | DEFERRED (external: base rebuild; reachability MITIGATED) |
 
-Counts (16 findings): 5 RESOLVED (F1, F2, F7, F9, F15); 3 MITIGATED (F3, F5, F13); 1 ADJUDICATED (F6);
-2 ACCEPTED-RISK (F4, F16); 1 DEFERRED (F8); 4 Positive (F10–F12, F14).
+Counts (17 findings): 5 RESOLVED (F1, F2, F7, F9, F15); 3 MITIGATED (F3, F5, F13); 1 ADJUDICATED (F6);
+2 ACCEPTED-RISK (F4, F16); 2 DEFERRED (F8, F17); 4 Positive (F10–F12, F14).
 
 The first pass recorded findings only, by maintainer instruction; the base template's resolve-inline
 rule was applied in the code work between 2026-10-03 and 2026-10-09 (see the re-verification log).
@@ -773,6 +777,15 @@ digest are identical for both architectures, and the arm64 manifest carries the 
 provenance. If an arm64 node is ever used, run `smoke.sh` on it first (it takes an image reference).
 A native arm64 CI job would remove the gap.
 
+### F17 — The weekly rescan is red: a fixable HIGH in the base image's `libssl3`, and no fixed base is published (found 2026-11-05)
+
+**Severity:** Low   **Disposition:** DEFERRED (external: a rebuilt `gcr.io/distroless/cc-debian12:nonroot`; reachability MITIGATED)
+**Where:** `.github/workflows/rescan.yml` (Trivy OS scan, fails on fixable CRITICAL/HIGH); `Dockerfile` runtime base `gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79…dd182f`.
+
+**Issue:** the scheduled rescans of 2026-10-26 and 2026-11-02 failed on the published `0.0.3`: `libssl3` 3.0.20-1~deb12u2 carries CVE-2026-84782 (HIGH; OpenSSL information disclosure via DTLS handshake retransmission), fixed in Debian as 3.0.22-1~deb12u2 (Trivy 0.74.0, Debian 12.15 base; the job log was read through the Actions API). The same gate failed the Dependabot Actions PR (#6, 2026-10-29: `Build, scan and smoke-test (amd64)`, the only job that failed; the PR changes four workflow lines), so a build of this Dockerfile today would be refused by its own pre-release scan. The pinned base digest equals the digest the registry serves for the `nonroot` tag today (`skopeo inspect`, 2026-11-05): the base has not been rebuilt with the fix, so there is nothing to bump to.
+**Impact:** the contingency image is not deployed (ADR-0002), so nothing is exposed; the gate is doing its job and the red scheduled run is the intended signal. The vulnerable library is loaded by the server: `key-server` lists `libssl.so.3` and `libcrypto.so.3` as needed libraries (`readelf -d` on the amd64 binary extracted from the published image). Reachability: the binary imports `SSL_CTX_new` and no symbol containing `dtls` (`nm -D --undefined-only`; none of the DTLS method constructors), and the server speaks HTTP over TCP, so the DTLS retransmission path is not constructed by the binary's own calls (a symbol check, not a proof about the libraries it calls through).
+**Remediation / evidence:** (1) the Dependabot Actions bump was applied by hand with the same pins (`docker/login-action` 4.7.0, commit `81c6f93d…`, as in the other repositories), because the PR cannot be merged with a red check and the token lacks `workflow` scope; (2) the gate is left blocking — it is not relaxed or allow-listed for a library the image loads; (3) trigger to close: when the Dependabot Docker job proposes a new distroless digest, merge it, release `0.0.4` (re-pins `config/images.yaml`) and confirm the rescan is green. Until then the red weekly run is expected, and the contingency kit's activation checklist (F8) must start by rescanning the image.
+
 ---
 
 ## Section A — Invariant verification matrix
@@ -1152,6 +1165,7 @@ A native arm64 CI job would remove the gap.
   - **Found:** the pinned `seal-v0.6.15` lockfile has 16 RustSec vulnerabilities (rustls, rustls-webpki, webpki-roots, quinn-proto, quick-xml, imbl-sized-chunks, rsa) and `seal-v0.6.16` still 14 (`cargo audit --file Cargo.lock`, database of 2026-10-22). Not analysed for reachability; the image is undeployed.
   - **Measured:** actionlint clean; the `cargo auditable` mechanism on a small `strip = true` crate (section present, `cargo audit bin` finds the advisory); the existing amd64 image (0.0.2) shows `num=0` language-specific files under Trivy. **Not run locally:** the full image build; CI ran it on a branch instead (run 39804059909: success, 753 crates visible, 5 fixable HIGH crate findings per binary reported, smoke test passed).
   - Counts: **5 RESOLVED, 3 MITIGATED (F3, F5, F13), 1 ADJUDICATED, 2 ACCEPTED-RISK, 1 DEFERRED (F8)**; 4 Positive.
+- 2026-11-05 — delta review since the 2026-10-22 close-out (`65eb9d8`): the ADR-0003 rename and README name fix (no code), release `0.0.3` (tag `v0.0.3` = `b13244a`, 2026-10-22: `cargo auditable`, exact version tags, the OS/crate scan split — F13, F15 and OQ3 shipped) and the open Dependabot Actions PR. Found F17 (the weekly rescan red since 2026-10-26 on CVE-2026-84782 in the distroless base, no fixed base yet; reachability checked on the published binary; DEFERRED). Applied the Actions bump by hand (identical pins to the PR). Header corrected to the released state (Deployment status and the F13 row said `0.0.2` / "commit pending"). Not re-run: a local build of the image (CI is the evidence, and today it would fail on F17); the kit and Section D boxes are unchanged. Lens check: A11Y not triggered (no UI); the template line's base date is re-cited to the 2026-11-01 registry, which changes no row used here. Counts: 5 RESOLVED, 3 MITIGATED, 1 ADJUDICATED, 2 ACCEPTED-RISK, 2 DEFERRED (F8, F17); 4 Positive.
 
 ## Pre-save consistency checklist (this pass)
 
