@@ -17,7 +17,7 @@ first-party application code. The upstream Rust workspace is compiled, not revie
 
 **Template:**
 
-- AUDIT_TEMPLATE.md (2026-10-08)
+- AUDIT_TEMPLATE.md (2026-11-01)
 - AUDIT_TEMPLATE_IMG.md (2026-10-08)
 - AUDIT_TEMPLATE_SEAL.md (2026-09-30), applied to the key-server side: the trust matrix and committee
   readiness. The SDK/client rows are N/A.
