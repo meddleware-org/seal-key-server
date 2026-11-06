@@ -44,6 +44,7 @@ is not discovered by `apply.sh`. Its weekly rescan was red from 2026-10-26 on a 
 
 **Images:**
 
+- **0.0.4** (2026-11-06, tag `v0.0.4`): index `sha256:a42cce2b…5982` on quay.io and Docker Hub (consensus 2/3, cosign valid); runtime base `cc-debian13` (F17). The weekly rescan dispatched after the release passed. Entries below are earlier releases.
 - `quay.io/meddleware-org/seal-key-server:0.0.2` and `docker.io/meddleware/seal-key-server:0.0.2` @ the
   same index `sha256:8609cbbe4adb171f84f95170102061340d8ff02e639fc44faf8f8c71f5497134`, published
   2026-10-08 (tag `v0.0.2`, run 37782631292).
