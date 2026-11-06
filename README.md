@@ -16,7 +16,7 @@ custodial (its operator could decrypt what it serves), so sealed-storage-ui then
 - **Source:** upstream release `seal-v0.6.15`, commit `d0ab560e8dfffe31397728fe284936085a7a7100`. The
   Dockerfile clones the tag and refuses to build if the commit differs.
 - **Build:** Rust 1.96.1 (the release's `rust-toolchain.toml`), `cargo build --locked --release`.
-- **Runtime:** `gcr.io/distroless/cc-debian12:nonroot`, user 65532, no shell. Base images are pinned
+- **Runtime:** `gcr.io/distroless/cc-debian13:nonroot`, user 65532, no shell. Base images are pinned
   by digest.
 - **Licence:** the image contains Apache-2.0 software from MystenLabs/seal; this repository's own
   files are 0BSD. The licence texts travel with the image in `/usr/share/doc/seal-key-server/`:
