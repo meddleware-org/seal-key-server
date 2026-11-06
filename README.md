@@ -43,7 +43,7 @@ archives in a short job that holds the credentials, scans the result, merges the
 build provenance.
 
 Deploy by the signed **index digest**, never by tag; see [SECURITY.md](SECURITY.md) for the `cosign verify`
-command. Releases carry exact version tags only (`0.0.3`; no `latest`, no `0.0`: a floating tag gives a deployer
+command. Releases carry exact version tags only (`0.0.4`; no `latest`, no `0.0`: a floating tag gives a deployer
 nothing the digest does not). The `<commit>-amd64` / `<commit>-arm64` tags are build intermediates. The `latest`
 and `0.0` tags that releases up to 0.0.2 pushed stay on the registries unchanged and are never moved again.
 

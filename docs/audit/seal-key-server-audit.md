@@ -40,8 +40,7 @@ Not triggered:
 mode 2-of-3 (D24). Image `0.0.3` (tag `v0.0.3` = `b13244a`, released 2026-10-22, `Publish (Docker)` run
 39809249229 green) is published and cosign-signed, and pinned in `config/images.yaml` as a contingency
 entry (digest `sha256:012f71ef…803bcd`; the 0.0.2 index `sha256:8609cbbe…5497134` is superseded). The kit
-is not discovered by `apply.sh`. Its weekly rescan has been red since 2026-10-26 on a base-image advisory
-(F17).
+is not discovered by `apply.sh`. Its weekly rescan was red from 2026-10-26 on a base-image advisory (F17), resolved by the move to cc-debian13 in 0.0.4 (2026-11-06).
 
 **Images:**
 
@@ -62,7 +61,7 @@ is not discovered by `apply.sh`. Its weekly rescan has been red since 2026-10-26
 | Stage | Image |
 | --- | --- |
 | Build | `docker.io/library/rust:1.96.1-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3` |
-| Runtime | `gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79194e45a7da0158a9c6da57b217585af0786db3845d1f0ec1a0dd182f` |
+| Runtime | `gcr.io/distroless/cc-debian13:nonroot@sha256:08476c244888bfb425bae1ae4dd7c17f093e972aab8426883d97f3c6f280f7c1` (from 0.0.4; 0.0.3 and earlier: `cc-debian12:nonroot@sha256:9dac0a79…dd182f`) |
 
 **Runtime user:** `65532:65532` (distroless nonroot; confirmed in the published image config
 2026-10-09); no shell, no package manager.
@@ -177,10 +176,10 @@ PostgreSQL and uses a bash entrypoint.
 | F14 | Positive | CI-equals-release gate, credential-less builds, fail-closed licences | new |
 | F15 | Info | The image `version` label carries `v0.0.2` | RESOLVED (workflow, commit pending; shipped by the next release) |
 | F16 | Info | arm64 is not scanned or smoke-tested before release | ACCEPTED-RISK |
-| F17 | Low | The weekly rescan is red: `libssl3` of the distroless base carries a fixable HIGH (CVE-2026-84782) and no fixed base is published yet | DEFERRED (external: base rebuild; reachability MITIGATED) |
+| F17 | Low | The weekly rescan is red: `libssl3` of the distroless base carries a fixable HIGH (CVE-2026-84782) and no fixed base is published yet | RESOLVED (base moved to cc-debian13, 0.0.4) |
 
-Counts (17 findings): 5 RESOLVED (F1, F2, F7, F9, F15); 3 MITIGATED (F3, F5, F13); 1 ADJUDICATED (F6);
-2 ACCEPTED-RISK (F4, F16); 2 DEFERRED (F8, F17); 4 Positive (F10–F12, F14).
+Counts (17 findings): 6 RESOLVED (F1, F2, F7, F9, F15, F17); 3 MITIGATED (F3, F5, F13); 1 ADJUDICATED (F6);
+2 ACCEPTED-RISK (F4, F16); 1 DEFERRED (F8); 4 Positive (F10–F12, F14).
 
 The first pass recorded findings only, by maintainer instruction; the base template's resolve-inline
 rule was applied in the code work between 2026-10-03 and 2026-10-09 (see the re-verification log).
@@ -638,7 +637,7 @@ release only; the weekly rescan and upstream watch).
 **Severity:** Positive   **Disposition:** re-verified 2026-10-09 (published image config checked)
 
 - Both `FROM` lines are digest-pinned with their tags kept.
-- Runtime is `distroless/cc-debian12:nonroot`: glibc and CA certificates, no shell, no package manager.
+- Runtime is `distroless/cc-debian13:nonroot` (from 0.0.4; `cc-debian12` before): glibc and CA certificates, no shell, no package manager.
 - `USER 65532:65532` (`Dockerfile:62`; the published image config shows `65532:65532`).
 - No `ENV` secrets and no secret build args; the image's only `ENV` is distroless's `PATH` and
   `SSL_CERT_FILE`.
@@ -779,12 +778,13 @@ A native arm64 CI job would remove the gap.
 
 ### F17 — The weekly rescan is red: a fixable HIGH in the base image's `libssl3`, and no fixed base is published (found 2026-11-05)
 
-**Severity:** Low   **Disposition:** DEFERRED (external: a rebuilt `gcr.io/distroless/cc-debian12:nonroot`; reachability MITIGATED)
+**Severity:** Low   **Disposition:** RESOLVED (2026-11-06: runtime base moved to `gcr.io/distroless/cc-debian13:nonroot`; released as 0.0.4)
 **Where:** `.github/workflows/rescan.yml` (Trivy OS scan, fails on fixable CRITICAL/HIGH); `Dockerfile` runtime base `gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79…dd182f`.
 
 **Issue:** the scheduled rescans of 2026-10-26 and 2026-11-02 failed on the published `0.0.3`: `libssl3` 3.0.20-1~deb12u2 carries CVE-2026-84782 (HIGH; OpenSSL information disclosure via DTLS handshake retransmission), fixed in Debian as 3.0.22-1~deb12u2 (Trivy 0.74.0, Debian 12.15 base; the job log was read through the Actions API). The same gate failed the Dependabot Actions PR (#6, 2026-10-29: `Build, scan and smoke-test (amd64)`, the only job that failed; the PR changes four workflow lines), so a build of this Dockerfile today would be refused by its own pre-release scan. The pinned base digest equals the digest the registry serves for the `nonroot` tag today (`skopeo inspect`, 2026-11-05): the base has not been rebuilt with the fix, so there is nothing to bump to.
 **Impact:** the contingency image is not deployed (ADR-0002), so nothing is exposed; the gate is doing its job and the red scheduled run is the intended signal. The vulnerable library is loaded by the server: `key-server` lists `libssl.so.3` and `libcrypto.so.3` as needed libraries (`readelf -d` on the amd64 binary extracted from the published image). Reachability: the binary imports `SSL_CTX_new` and no symbol containing `dtls` (`nm -D --undefined-only`; none of the DTLS method constructors), and the server speaks HTTP over TCP, so the DTLS retransmission path is not constructed by the binary's own calls (a symbol check, not a proof about the libraries it calls through).
 **Remediation / evidence:** (1) the Dependabot Actions bump was applied by hand with the same pins (`docker/login-action` 4.7.0, commit `81c6f93d…`, as in the other repositories), because the PR cannot be merged with a red check and the token lacks `workflow` scope; (2) the gate is left blocking — it is not relaxed or allow-listed for a library the image loads; (3) trigger to close: when the Dependabot Docker job proposes a new distroless digest, merge it, release `0.0.4` (re-pins `config/images.yaml`) and confirm the rescan is green. Until then the red weekly run is expected, and the contingency kit's activation checklist (F8) must start by rescanning the image.
+**Resolution 2026-11-06:** no rebuilt `cc-debian12` base appeared (the registry still served the pinned digest on 2026-11-06), so the runtime base moved to `gcr.io/distroless/cc-debian13:nonroot` — the base `sui-indexer` and `access-gate-gateway` already use. The binaries link only `libssl.so.3`, `libcrypto.so.3`, `libgcc_s`, `libm` and `libc` (same sonames on Debian 13, where `libssl3t64` is OpenSSL 3.5); the pull request's CI built the image, passed the Trivy OS scan (the gate that had been failing) and the smoke test (`scripts/smoke.sh`) on amd64, then merged; released as `0.0.4` (VERSION and README updated). arm64 is not smoke-tested before release (F16, accepted).
 
 ---
 
@@ -819,7 +819,7 @@ A native arm64 CI job would remove the gap.
 | Upstream crate graph | upstream `Cargo.lock` (committed upstream), `--locked` | compiled in | visible to Trivy and in the SBOM from 0.0.3 (`cargo auditable`); advisories reported, not gated (F13, OQ5) | upstream `deny.toml` exists; licences gated by `about.toml` (F1) |
 | `rust:1.96.1-slim-bookworm` | digest | build | build stage only; not in the runtime image | excluded from Dependabot by design (moves with `SEAL_TAG`) |
 | Debian packages (build) | unpinned, accepted (F4) | build | — | not in runtime |
-| `distroless/cc-debian12:nonroot` | digest | runtime (glibc, CA) | Trivy image scan in CI, release and weekly rescan (fixable CRITICAL/HIGH fail) | Dependabot digest PRs (F7) |
+| `distroless/cc-debian13:nonroot` (`cc-debian12` up to 0.0.3) | digest | runtime (glibc, CA) | Trivy image scan in CI, release and weekly rescan (fixable CRITICAL/HIGH fail) | Dependabot digest PRs (F7) |
 | `cargo-about` 0.9.2 | `--locked --version` | build | — | licence notices only |
 | Scanner | Trivy `v0.74.0` (`trivy-action` SHA-pinned) | CI | green 2026-10-09 | config and image scans |
 | Full node, key-server object, ingress | kit | runtime | — | F8 |
@@ -1166,6 +1166,7 @@ A native arm64 CI job would remove the gap.
   - **Measured:** actionlint clean; the `cargo auditable` mechanism on a small `strip = true` crate (section present, `cargo audit bin` finds the advisory); the existing amd64 image (0.0.2) shows `num=0` language-specific files under Trivy. **Not run locally:** the full image build; CI ran it on a branch instead (run 39804059909: success, 753 crates visible, 5 fixable HIGH crate findings per binary reported, smoke test passed).
   - Counts: **5 RESOLVED, 3 MITIGATED (F3, F5, F13), 1 ADJUDICATED, 2 ACCEPTED-RISK, 1 DEFERRED (F8)**; 4 Positive.
 - 2026-11-05 — delta review since the 2026-10-22 close-out (`65eb9d8`): the ADR-0003 rename and README name fix (no code), release `0.0.3` (tag `v0.0.3` = `b13244a`, 2026-10-22: `cargo auditable`, exact version tags, the OS/crate scan split — F13, F15 and OQ3 shipped) and the open Dependabot Actions PR. Found F17 (the weekly rescan red since 2026-10-26 on CVE-2026-84782 in the distroless base, no fixed base yet; reachability checked on the published binary; DEFERRED). Applied the Actions bump by hand (identical pins to the PR). Header corrected to the released state (Deployment status and the F13 row said `0.0.2` / "commit pending"). Not re-run: a local build of the image (CI is the evidence, and today it would fail on F17); the kit and Section D boxes are unchanged. Lens check: A11Y not triggered (no UI); the template line's base date is re-cited to the 2026-11-01 registry, which changes no row used here. Counts: 5 RESOLVED, 3 MITIGATED, 1 ADJUDICATED, 2 ACCEPTED-RISK, 2 DEFERRED (F8, F17); 4 Positive.
+- 2026-11-06 — F17 RESOLVED. The weekly rescan had failed since 2026-10-26 on CVE-2026-84782 in the `cc-debian12` base's `libssl3` and no rebuilt base appeared (the registry served the pinned digest still). The runtime base moved to `cc-debian13` (pull request #7: the CI image build, Trivy OS scan and smoke test passed on amd64); `VERSION` 0.0.4; the release and the `config/images.yaml` pin are in the workspace. Applies the same fix as the other Rust images (their base is `cc-debian13`). Header, Section B base-image rows and the counts updated: 6 RESOLVED (F1, F2, F7, F9, F15, F17), 3 MITIGATED, 1 ADJUDICATED, 2 ACCEPTED-RISK, 1 DEFERRED (F8), 4 Positive.
 
 ## Pre-save consistency checklist (this pass)
 
