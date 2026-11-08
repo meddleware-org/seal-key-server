@@ -932,7 +932,7 @@ A native arm64 CI job would remove the gap.
   are activation-time and maintainer items
 - [ ] registry credentials inventoried and scoped — `OPERATOR_TASKS.md` "Image registry credentials"
   (maintainer, before mainnet) — F3
-- [ ] external review of the kit — maintainer, before mainnet
+- [ ] external review (ADR-0009 gate G4: not a launch gate; covered by redeploy and the audit pass) of the kit — maintainer, before mainnet
 
 ---
 
