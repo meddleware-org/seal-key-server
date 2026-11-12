@@ -16,6 +16,7 @@ on:
       - "v*"
 
 env:
+  DO_NOT_TRACK: "1"
   IMAGE: seal-key-server
 
 permissions:

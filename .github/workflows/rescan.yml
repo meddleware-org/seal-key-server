@@ -13,6 +13,7 @@ permissions:
   contents: read
 
 env:
+  DO_NOT_TRACK: "1"
   IMAGE: seal-key-server
 
 jobs:
