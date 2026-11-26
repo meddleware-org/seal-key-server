@@ -1,3 +1,4 @@
+# Dependabot: weekly, grouped update pull requests for the Docker base-image digests and the GitHub Actions (the fleet policy, D41 and D52, in the workspace docs/audit/LENS_GROUNDING_LOG.md).
 version: 2
 updates:
   # Base-image digests. The Rust image is excluded: its version must equal the upstream release's
@@ -7,13 +8,17 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Five open at a time keeps the queue reviewable.
     open-pull-requests-limit: 5
     groups:
+      # One pull request moves every image digest together.
       docker:
         patterns: ['*']
+    # Never bumped by a bot: see the note at the top of this block.
     ignore:
       - dependency-name: rust
       - dependency-name: library/rust
+  # Actions are pinned by full commit SHA (D12); one pull request moves every pin together.
   - package-ecosystem: github-actions
     directory: /
     schedule:

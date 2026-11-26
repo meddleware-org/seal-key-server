@@ -18,9 +18,12 @@ accepted = [
     "BSL-1.0",
     "CDLA-Permissive-2.0",
 ]
+# The platforms the image is built for: only crates linked on these are listed.
 targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
+# Build and test tooling is not redistributed in the image, so it is not listed.
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
+# `ring` needs a known workaround to be detected as its real licence.
 workarounds = ["ring"]
 
 # MystenLabs/mvr publishes mvr-types with no `license` field and no licence file in the crate

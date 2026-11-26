@@ -10,6 +10,7 @@ set -euo pipefail
 
 image="${1:?usage: smoke.sh <image>}"
 
+# The image must declare a non-root user: a cluster that forces runAsNonRoot would otherwise reject it.
 user="$(docker image inspect --format '{{.Config.User}}' "$image")"
 if [ "$user" != "65532:65532" ]; then
   echo "image runs as '${user}', want 65532:65532" >&2
@@ -18,6 +19,7 @@ fi
 
 docker run --rm --entrypoint /usr/local/bin/seal-cli "$image" --help > /dev/null
 
+# Run the entrypoint with no configuration: it must exit non-zero (not hang, not serve) and say what is missing.
 code=0
 out="$(timeout 120 docker run --rm "$image" 2>&1)" || code=$?
 if [ "$code" -eq 0 ] || [ "$code" -eq 124 ]; then
@@ -31,6 +33,7 @@ if ! grep -q 'KEY_SERVER_OBJECT_ID' <<< "$out"; then
   exit 1
 fi
 
+# Copy the licence texts out of a created (not started) container: the image has no shell to list them with.
 tmp="$(mktemp -d)"
 cid="$(docker create "$image")"
 trap 'docker rm -f "$cid" > /dev/null; rm -rf "$tmp"' EXIT

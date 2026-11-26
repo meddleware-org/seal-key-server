@@ -7,6 +7,7 @@ name: CI
 #   - a smoke test of the built image: non-root user, seal-cli runs, key-server refuses to start
 #     without configuration
 
+# Every push and pull request, and the release workflow calls this one on the tagged commit.
 on:
   push:
     branches: ["**"]
@@ -14,22 +15,27 @@ on:
     branches: ["**"]
   workflow_call:
 
+# Least privilege: CI only reads the repository.
 permissions:
   contents: read
 
 env:
+  # No tool in the pipeline may send telemetry.
   DO_NOT_TRACK: "1"
 
 jobs:
+  # Static checks on the Dockerfile, the workflows and the configuration.
   lint:
     timeout-minutes: 15
     name: Lint (hadolint, actionlint, Trivy config)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # hadolint checks the Dockerfile against best practice (a documented ignore is allowed, an unexplained one is not).
       - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
         with:
           dockerfile: Dockerfile
+      # actionlint checks the workflow files; the image is pinned by digest.
       - name: actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo docker.io/rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 -color
       - name: Trivy configuration scan
@@ -41,12 +47,14 @@ jobs:
           exit-code: "1"
           version: v0.74.0
 
+  # Build the image for amd64 only (the release builds both), scan it and run the smoke test; nothing is pushed.
   image:
     timeout-minutes: 90
     name: Build, scan and smoke-test (amd64)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Buildx gives the layer cache the build below uses.
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # No registry login in this workflow: it compiles third-party code and pushes nothing.
@@ -57,9 +65,11 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: seal-key-server:ci
+          # The GitHub cache keeps the long Rust compile between runs.
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,scope=amd64,mode=max
 
+      # Fail on a fixable critical or high advisory in the distroless OS packages.
       - name: Scan the image's OS packages (fail on fixable CRITICAL/HIGH)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -79,6 +89,7 @@ jobs:
           format: cyclonedx
           output: trivy-crates.cdx.json
           version: v0.74.0
+      # A floor on the crate count: it fails if the scanner stops seeing the compiled crates.
       - name: At least 100 crates are listed
         run: |
           n="$(jq '[.components[]? | select((.purl // "") | startswith("pkg:cargo/"))] | length' trivy-crates.cdx.json)"
@@ -97,5 +108,6 @@ jobs:
           ignore-unfixed: true
           version: v0.74.0
 
+      # scripts/smoke.sh checks the user, the tools and the licence files in the built image.
       - name: Smoke test
         run: bash scripts/smoke.sh seal-key-server:ci

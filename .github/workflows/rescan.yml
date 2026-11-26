@@ -4,25 +4,31 @@ name: Weekly rescan
 # whether MystenLabs/seal has released a newer version than the Dockerfile pins. A contingency image is
 # only useful if it is current on the day it is needed; a failing run or a new issue is the signal.
 
+# Weekly (Monday morning UTC) and on demand.
 on:
   schedule:
     - cron: "17 6 * * 1"
   workflow_dispatch:
 
+# Least privilege by default.
 permissions:
   contents: read
 
 env:
+  # No tool in the pipeline may send telemetry.
   DO_NOT_TRACK: "1"
   IMAGE: seal-key-server
 
 jobs:
+  # Scan what is published, not what is in the repository: new advisories appear after a build.
   rescan:
+    # The job needs no credentials: the images are public.
     name: Rescan the published image
     runs-on: ubuntu-latest
     steps:
       # Only exact `X.Y.Z` tags are releases; the `<commit>-<arch>` build intermediates never match.
       - name: Newest published version tag
+        # The step id the scans read the tag from.
         id: newest
         env:
           REPO: quay.io/${{ vars.QUAY_NAMESPACE || 'meddleware-org' }}/${{ env.IMAGE }}
@@ -34,6 +40,7 @@ jobs:
             exit 1
           fi
           echo "newest published release: ${tag}"
+          # Hand the tag to the scan steps below.
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       - name: Trivy image scan of the OS packages (fail on fixable CRITICAL/HIGH)
@@ -58,11 +65,13 @@ jobs:
           ignore-unfixed: true
           version: v0.74.0
 
+  # Open an issue when MystenLabs/seal has released a version newer than the one the Dockerfile pins.
   upstream:
     name: Upstream release watch
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Needed to open the issue; no other write access.
       issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,12 +79,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The pinned release is read from the Dockerfile, so the check cannot drift from it.
           current="$(sed -n 's/^ARG SEAL_TAG=//p' Dockerfile)"
           latest="$(gh api repos/MystenLabs/seal/releases/latest --jq .tag_name)"
           echo "pinned: ${current}  latest upstream: ${latest}"
+          # Up to date: nothing to report.
           if [ "$current" = "$latest" ]; then
             exit 0
           fi
+          # Do not open a second issue for the same upstream release.
           open="$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"${latest}\" in:title" --json number --jq 'length')"
           if [ "$open" = "0" ]; then
             gh issue create -R "$GITHUB_REPOSITORY" \

@@ -27,6 +27,9 @@ first-party application code. The upstream Rust workspace is compiled, not revie
 - AUDIT_TEMPLATE_AUTH.md (2026-10-08), scoped to **key material**: the image holds none, but the
   master seed and the registry credentials are held by the kit and the workflows (B.AUTH-1, F3, F8).
   The token, IdP and client rows are N/A.
+- **Added 2026-11-26 (Part B documentation pass):** AUDIT_TEMPLATE_DOCS.md (2026-11-20); AUDIT_TEMPLATE_RFC.md (2026-11-19), partial: OCI image and registry formats, SPDX, provenance and signing; AUDIT_TEMPLATE_IOP.md (2026-11-19),
+  partial: the build and release dependencies and the upstream project; AUDIT_TEMPLATE_PRIV.md (2026-11-20), partial: the image holds and logs nothing about a person (the running server is upstream's and is not deployed);
+  AUDIT_TEMPLATE_CONF.md (2026-11-26), partial: the pipeline configuration and the repository variables.
 
 Not triggered:
 
@@ -789,6 +792,43 @@ A native arm64 CI job would remove the gap.
 
 ---
 
+### Part B documentation pass (2026-11-26)
+
+Scope: every tracked file read against the workspace's `docs/operations/DOCUMENTATION_STANDARD.md` and annotated (Part B Phase 1, the twenty-sixth repository, the last of the image-only repositories); the DOCS, RFC, IOP, PRIV and CONF lenses applied
+for the first time, in the partial form this project calls for (it holds no first-party code). Checked: the workflows and configuration parse the same apart from comments, `bash -n` on the smoke script, and `check-docs`. The image build and the smoke test were
+not re-run (no container daemon here and a multi-hour Rust compile); CI runs them.
+
+#### B.RFC-1 Standards inventory
+
+| Standard | Where | Evidence |
+| --- | --- | --- |
+| OCI Image Specification and OCI Distribution Specification (the archive, the index of two architectures, referrers) | `docker-publish.yml` | the merge step asserts both registries return one digest |
+| SPDX (JSON) for the SBOM and the SLSA build-provenance attestation, signed with Sigstore (keyless cosign) | `docker-publish.yml` | the signature, SBOM and provenance are verifiable with the command in `SECURITY.md` |
+| CycloneDX (JSON) as Trivy reports the compiled crates (a scan input) | `ci.yml` | the crate-count floor |
+
+**B.RFC-2 Non-final standards:** none. **B.RFC-3 Deviations:** none found; the key server's own protocols are upstream's and are not reviewed here.
+
+#### B.IOP Interoperability, portability and exit
+
+- **Portability and exit:** nothing is held; the image is rebuilt from a pinned upstream tag by anyone with the Dockerfile.
+- **Dependencies (exit register):** MystenLabs/seal (the upstream, pinned by tag and commit), the `rust` and distroless base images, quay.io, Docker Hub, GitHub Actions, Sigstore and Trivy.
+- **Incentives:** no telemetry, no ads, no tracking.
+
+#### B.PRIV Privacy honoured
+
+The image stores and logs nothing about a person and is not deployed; the upstream server, if it were deployed, would log request metadata under the operator's configuration (the kit's runbook, F8).
+
+#### B.CONF Configuration and values
+
+- **Configuration surface:** the Dockerfile `ARG`s (`SEAL_TAG`, `SEAL_COMMIT`, `VERSION`), the `VERSION` file, `about.toml`, and the repository variables `QUAY_NAMESPACE` and `DOCKERHUB_NAMESPACE` (defaults in the workflows).
+- **Values that can carry a credential:** none are configured in this repository; the registry credentials are repository secrets passed only to the login steps. The smoke test greps the key server's refusal for the name of the missing setting and prints the output only on failure.
+- **Single source:** the upstream tag is read from the Dockerfile by the weekly watch, so the workflow cannot drift from it.
+
+### F18 — The repository had no changelog, contributing guide or agent context
+**Severity:** Low   **Disposition:** RESOLVED (2026-11-26, unreleased)
+**Where:** the repository root (no `CHANGELOG.md`, `CONTRIBUTING.md`, `CLAUDE.md` or `AGENTS.md`); the workflows, `dependabot.yml`, `.dockerignore`, `about.toml` and the smoke script (few comments).
+**Remediation / evidence:** the four documents are written (the changelog from the git history and the tags, checked against the dates of `v0.0.1` to `v0.0.4`); the configuration files and workflows carry line-level comments; `check-docs` for the repository passes.
+
 ## Section A — Invariant verification matrix
 
 | # | Invariant (IMG / SEAL) | Enforced at | Proven by | Status |
@@ -1169,6 +1209,9 @@ A native arm64 CI job would remove the gap.
 - 2026-11-05 — delta review since the 2026-10-22 close-out (`65eb9d8`): the ADR-0003 rename and README name fix (no code), release `0.0.3` (tag `v0.0.3` = `b13244a`, 2026-10-22: `cargo auditable`, exact version tags, the OS/crate scan split — F13, F15 and OQ3 shipped) and the open Dependabot Actions PR. Found F17 (the weekly rescan red since 2026-10-26 on CVE-2026-84782 in the distroless base, no fixed base yet; reachability checked on the published binary; DEFERRED). Applied the Actions bump by hand (identical pins to the PR). Header corrected to the released state (Deployment status and the F13 row said `0.0.2` / "commit pending"). Not re-run: a local build of the image (CI is the evidence, and today it would fail on F17); the kit and Section D boxes are unchanged. Lens check: A11Y not triggered (no UI); the template line's base date is re-cited to the 2026-11-01 registry, which changes no row used here. Counts: 5 RESOLVED, 3 MITIGATED, 1 ADJUDICATED, 2 ACCEPTED-RISK, 2 DEFERRED (F8, F17); 4 Positive.
 - 2026-11-06 — F17 RESOLVED. The weekly rescan had failed since 2026-10-26 on CVE-2026-84782 in the `cc-debian12` base's `libssl3` and no rebuilt base appeared (the registry served the pinned digest still). The runtime base moved to `cc-debian13` (pull request #7: the CI image build, Trivy OS scan and smoke test passed on amd64); `VERSION` 0.0.4; the release and the `config/images.yaml` pin are in the workspace. Applies the same fix as the other Rust images (their base is `cc-debian13`). Header, Section B base-image rows and the counts updated: 6 RESOLVED (F1, F2, F7, F9, F15, F17), 3 MITIGATED, 1 ADJUDICATED, 2 ACCEPTED-RISK, 1 DEFERRED (F8), 4 Positive.
 
+- 2026-11-26 — Part B documentation pass and first application of the DOCS, RFC, IOP, PRIV and CONF lenses in their partial form (above, "Part B documentation pass"). Found and fixed **F18** (no changelog, contributing guide or agent context). The comment-only
+  diff of the workflows and configuration was checked; the image itself is unchanged. Counts: F1 to F18.
+
 ## Pre-save consistency checklist (this pass)
 
 - [x] Section A ↔ findings: GAP row A12 (F13); A8, A9, A13, A14 hold; A10–A11 point to F8.
@@ -1181,3 +1224,4 @@ A native arm64 CI job would remove the gap.
 - [x] C.1 reflects the CI build, scans and smoke test.
 - [x] Re-verification log entry added (2026-10-09).
 - [x] 2026-10-22 (close-out): OQ1, OQ3, OQ4 carry their decisions; log entry added; no counts change.
+- [x] 2026-11-26 (Part B pass): F18 added with the DOCS, RFC, IOP, PRIV and CONF lenses in the Template line; counts F1 to F18.

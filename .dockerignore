@@ -1,3 +1,6 @@
+# Files kept out of the image build context: the build clones the upstream source itself and needs only the Dockerfile, the licence and the notices configuration.
+# Repository history and CI configuration.
 .git
 .github
+# Documentation (the licence texts the image carries are copied explicitly).
 *.md
