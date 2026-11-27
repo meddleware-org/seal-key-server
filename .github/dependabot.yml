@@ -14,7 +14,7 @@ updates:
       # One pull request moves every image digest together.
       docker:
         patterns: ['*']
-    # Never bumped by a bot: see the note at the top of this block.
+    # Never bumped by a bot: see the note at the top of this block (D147; lifted when SEAL_TAG moves to a release with a new toolchain).
     ignore:
       - dependency-name: rust
       - dependency-name: library/rust
