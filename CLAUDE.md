@@ -46,6 +46,10 @@ Release: bump `VERSION`, push a `v<version>` tag, and the `Publish (Docker)` wor
 - The crate advisory scan is report-only (audit F13, OQ5): the pinned upstream release carries advisories this repository cannot fix.
 - The weekly rescan has no `latest` tag to read: it picks the highest `X.Y.Z` tag, and the `<commit>-<arch>` build intermediates never match.
 
+## Documentation rules (workspace documentation standard, D144)
+
+This repository holds no source code of its own (the server is built from the upstream release by the Dockerfile), so the rule is about what it does hold: the Dockerfile, the workflows, `scripts/smoke.sh` and the licence-notice templates carry a header and a comment on every step and every setting, saying why. `node scripts/check-docs.mjs --report seal-key-server` (in the workspace repository) is the gate. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Related
 
 The audit `docs/audit/seal-key-server-audit.md`, workspace ADR-0002 (the key-server choice) and ADR-0003 (the naming), the deployment kit in the workspace `post-bootstrap/_contingency/seal-key-server/`, and `SECURITY.md` for the `cosign verify` command.
