@@ -47,7 +47,7 @@ RUN cargo install --locked --version 0.7.7 cargo-auditable \
  && install -D -m 0755 target/release/key-server /out/key-server \
  && install -D -m 0755 target/release/seal-cli /out/seal-cli
 
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:cc66d222f0a7ec996b78a99fe76a969bc80b539a5016ad866c14d1949bc6d0ab
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:29ee70762214fe8190cea04ef1c0a84a8365879e047ce8f911ae5a5ab2355fa2
 ARG SEAL_TAG
 ARG SEAL_COMMIT
 ARG VERSION=dev
