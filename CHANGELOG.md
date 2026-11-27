@@ -7,6 +7,8 @@ Reconstructed from the git history on 2026-11-26 (this file did not exist before
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-11-27
+
 ### Changed
 
 - Documentation: every file is annotated line by line; added `CHANGELOG.md`, `CONTRIBUTING.md`, `CLAUDE.md` and `AGENTS.md`. No change to the image.
